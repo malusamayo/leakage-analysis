@@ -1,5 +1,7 @@
+import os, sys
 import ast
 import astunparse
+import json
 
 
 class FactManager(object):
@@ -49,21 +51,12 @@ class FactManager(object):
         self.heap_num += 1
         return "$heap" + str(old_heap)
 
-code = '''
-a = b = 1
-x = A()
-y = B()
-x.f = y.g
-# y = t.k
-a, b = b, a
-df['Fare'] = df['Fare'].fillna(np.mean(df['Fare']), inplace = True)
-'''
 
-type_map = {
-    "np": ["module", "numpy"],
-    "_var5": ["var", "pandas.Series"]
-}
+with open(os.path.join("tests", "test0.py")) as f:
+    code = f.read()
 
+with open(os.path.join("types", "test0.py.json")) as f:
+    type_map = json.load(f) 
 name_map = {}
 
 FManager = FactManager()
@@ -119,23 +112,13 @@ class FactGenerator(ast.NodeVisitor):
                 assert type(target.slice) == ast.Index # Slice not handled yet
                 assert type(target.slice.value) == ast.Name
                 assert type(node.value) == ast.Name
-                FManager.add_fact("StoreIndex", (target.value.id, target.slice.value, node.value.id))
+                FManager.add_fact("StoreIndex", (target.value.id, target.slice.value.id, node.value.id))
             else:
                 print("Unkown target type! " + str(type(target)))
                 assert 0
 
         return node
     
-    # def visit_Subscript(self, node, assigned = False):
-    #     new_var = ""
-    #     if type(node.value) == ast.Name:
-    #         new_var = self.visit_Name(node.value, assigned=assigned)
-    #     else:
-    #         new_var = FManager.get_new_var()
-    #         self.visit_Assign(ast.Assign([ast.Name(new_var)], node.value))
-    #     idx_new_var = FManager.get_new_var()
-    #     self.visit_Assign(ast.Assign([ast.Name(idx_new_var)], node.slice))
-    #     return new_var, idx_new_var
 
     # def visit_BinOp(self, node):
     #     print('Node type: BinOp and fields: ', node._fields)
@@ -180,10 +163,10 @@ class FactGenerator(ast.NodeVisitor):
 class CodeTransformer(ast.NodeTransformer):
     def generic_visit(self, node):
         rets = ast.NodeTransformer.generic_visit(self, node)
-        if type(rets) != tuple:
-            return rets, ""
-        else:
-            return rets
+        # if type(rets) != tuple:
+        #     return rets #, ast.Pass()
+        # else:
+        return rets
 
     def handle_assign_value(self, target, value):
         assert(type(target) == ast.Name)
@@ -349,10 +332,11 @@ class CodeTransformer(ast.NodeTransformer):
 p = ast.parse(code)
 
 v = CodeTransformer()
-new_tree, _ = v.visit(p)
+new_tree = v.visit(p)
 new_code = astunparse.unparse(new_tree)
 print(new_code)
 
+# Call type inference engine here
+
 f = FactGenerator()
 f.visit(p)
-# print(FManager.datalog_facts)

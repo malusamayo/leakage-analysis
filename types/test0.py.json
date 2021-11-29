@@ -1,0 +1,5 @@
+{
+    "pd": ["module", "pandas"],
+    "np": ["module", "numpy"],
+    "_var4": ["var", "pandas.Series"]
+}
