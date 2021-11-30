@@ -1,0 +1,153 @@
+.type Var <: symbol
+.type Type <: symbol
+.type Field <: symbol
+.type Index <: symbol
+.type Invocation <: symbol
+.type Method <: symbol
+.type Value <: symbol
+
+// -- inputs --
+.decl AssignVar(to:Var, from:Var)
+.decl AssignStrConstant(to:Var, constant:symbol)
+.decl AssignBoolConstant(to:Var, constant:symbol)
+.decl LoadField(to:Var, from:Var, f:Field)
+.decl StoreField(to:Var, f:Field, from:Var)
+.decl LoadIndex(to:Var, from:Var, i:Index)
+.decl StoreIndex(to:Var, i:Index, from:Var)
+
+.decl AssignInvoke(to:Var, invo:Invocation)
+.decl Invoke(invo:Invocation)
+.decl AssignReturnValue(invo:Invocation, value:Value)
+
+.decl ActualParam(index:number, invo:Invocation, var:Var)
+.decl FormalParam(index:number, meth:Method, var:Var)
+.decl ActualKeyParam(keyword:symbol, invo:Invocation, var:Var)
+.decl FormalKeyParam(keyword:symbol, meth:Method)
+.decl CallGraphEdge(invo:Invocation, meth:Method)
+.decl MethodUpdate(meth:Method, index:number)
+
+.decl TaintSourceMethod(?method:Method)
+// .decl BaseToRetTaintTransferMethod(?method:Method)
+// .decl BaseToParamTaintTransferMethod(?method:Method)
+.decl ParamToBaseTaintTransferMethod(?index:number, ?method:Method)
+// .decl ParamIndexToBaseTaintTransferMethod(?index:number, ?method:Method)
+.decl ParamToRetTaintTransferMethod(?index:number, ?method:Method)
+
+.decl VarType(var:Var, type:Type)
+.decl Alloc(var:Var, value:Value)
+
+// -- facts --
+
+// path = 'data.csv'
+// data = pd.read_csv(path)
+// col = 'Fare'
+// fare = data[col]
+// l = len(data)
+// mean = np.mean(fare)
+// base = fare
+// arg1 = mean
+// arg2 = True
+// base.fillna(arg1, inplace=arg2)
+// data2 = data
+// data2[col] = base
+
+.input AssignVar
+.input AssignStrConstant
+.input AssignBoolConstant
+.input LoadField
+.input StoreField
+.input LoadIndex
+.input StoreIndex
+
+.input AssignInvoke
+.input Invoke
+.input AssignReturnValue
+
+.input ActualParam
+.input FormalParam
+.input ActualKeyParam
+.input FormalKeyParam
+.input CallGraphEdge
+.input MethodUpdate
+.input VarType
+.input Alloc
+
+// .decl TaintSourceMethod(?method:Method)
+// // .decl BaseToRetTaintTransferMethod(?method:Method)
+// // .decl BaseToParamTaintTransferMethod(?method:Method)
+// .decl ParamToBaseTaintTransferMethod(?index:number, ?method:Method)
+// // .decl ParamIndexToBaseTaintTransferMethod(?index:number, ?method:Method)
+// .decl ParamToRetTaintTransferMethod(?index:number, ?method:Method)
+
+
+TaintSourceMethod("numpy.mean").
+ParamToBaseTaintTransferMethod(1, "pandas.Series.fillna").
+
+// -- analysis --
+
+.decl VarPointsTo(var:Var, value:Value)
+.decl TaintedValue(value:Value)
+.decl TaintedVar(var:Var)
+
+VarPointsTo(var, value) :- Alloc(var, value).
+VarPointsTo(to, value) :- 
+    LoadIndex(to, from, field),
+    VarPointsTo(from, value).
+VarPointsTo(to, value) :- 
+    StoreIndex(to, field, from),
+    VarPointsTo(from, value).
+VarPointsTo(to, value) :- 
+    AssignVar(to, from),
+    VarPointsTo(from, value).
+// VarPointsTo(to, value) :-
+//     AssignInvoke(to, invo),
+//     AssignReturnValue(invo, value).
+
+// TaintedValue(value) :-
+//     MethodReturnTainted(meth),
+//     CallGraphEdge(invo, meth),
+//     AssignReturnValue(invo, value).
+
+// TaintedValue(toValue) :-
+//     AssignReturnValue(invo, toValue),
+//     CallGraphEdge(invo, meth),
+//     MethodReturnTaintedByIndex(meth, index),
+//     ActualParam(index, invo, var),
+//     VarPointsTo(var, value),
+//     TaintedValue(value).
+
+TaintedValue(value) :-
+    VarPointsTo(var, value),
+    TaintedVar(var).
+
+TaintedVar(var) :-
+    VarPointsTo(var, value),
+    TaintedValue(value).
+
+TaintedVar(var) :-
+    AssignInvoke(var, invo),
+    CallGraphEdge(invo, meth),
+    TaintSourceMethod(meth).
+
+TaintedVar(var) :-
+    ActualParam(index, invo, arg),
+    ActualParam(0, invo, var),
+    CallGraphEdge(invo, meth),
+    ParamToBaseTaintTransferMethod(index, meth),
+    TaintedVar(arg).
+
+.output VarPointsTo
+.output TaintedVar
+.output TaintedValue
+
+// .decl Test(meth:Invocation, value:Value)
+
+// Test(invo, value) :-
+//     // AssignReturnValue(invo, value),
+//     CallGraphEdge(invo, meth),
+//     MethodReturnTaintedByIndex(meth, index),
+//     ActualParam(index, invo, var),
+//     VarPointsTo(var, value),
+//     TaintedValue(value).
+
+// .output Test
