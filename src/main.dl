@@ -6,50 +6,42 @@
 .type Method <: symbol
 .type Value <: symbol
 
+#define ValueIdMacro(id, type) \
+    cat(cat(cat(id, "::: "), type), "::: ")
+
 // -- inputs --
+// inner-procedural facts
 .decl AssignVar(to:Var, from:Var)
 .decl AssignStrConstant(to:Var, constant:symbol)
 .decl AssignBoolConstant(to:Var, constant:symbol)
-.decl LoadField(to:Var, from:Var, f:Field)
-.decl StoreField(to:Var, f:Field, from:Var)
-.decl LoadIndex(to:Var, from:Var, i:Index)
-.decl StoreIndex(to:Var, i:Index, from:Var)
+.decl LoadField(to:Var, base:Var, f:Field)
+.decl StoreField(base:Var, f:Field, from:Var)
+.decl LoadIndex(base:Var, from:Var, i:Index)
+.decl StoreIndex(to:Var, base:Index, from:Var)
 
-.decl AssignInvoke(to:Var, invo:Invocation)
+// inter-procedural facts
 .decl Invoke(invo:Invocation)
-.decl AssignReturnValue(invo:Invocation, value:Value)
-
 .decl ActualParam(index:number, invo:Invocation, var:Var)
 .decl FormalParam(index:number, meth:Method, var:Var)
-.decl ActualKeyParam(keyword:symbol, invo:Invocation, var:Var)
-.decl FormalKeyParam(keyword:symbol, meth:Method)
+.decl ActualKeyParam(keyword:Var, invo:Invocation, var:Var)
+.decl FormalKeyParam(keyword:Var, meth:Method)
+.decl ActualReturn(invo:Invocation, var:Var)
+.decl FormalReturn(meth:Method, var:Var)
 .decl CallGraphEdge(invo:Invocation, meth:Method)
-.decl MethodUpdate(meth:Method, index:number)
+// .decl MethodUpdate(meth:Method, index:number)
 
+// taint analysis facts
 .decl TaintSourceMethod(?method:Method)
-// .decl BaseToRetTaintTransferMethod(?method:Method)
-// .decl BaseToParamTaintTransferMethod(?method:Method)
-.decl ParamToBaseTaintTransferMethod(?index:number, ?method:Method)
-// .decl ParamIndexToBaseTaintTransferMethod(?index:number, ?method:Method)
+.decl ParamToParamTaintTransferMethod(?to:number, ?from:number, ?method:Method)
 .decl ParamToRetTaintTransferMethod(?index:number, ?method:Method)
 
 .decl VarType(var:Var, type:Type)
 .decl Alloc(var:Var, value:Value)
 
-// -- facts --
+.decl IsHeapObject(value:Value)
+.decl IsTaintObject(value:Value)
 
-// path = 'data.csv'
-// data = pd.read_csv(path)
-// col = 'Fare'
-// fare = data[col]
-// l = len(data)
-// mean = np.mean(fare)
-// base = fare
-// arg1 = mean
-// arg2 = True
-// base.fillna(arg1, inplace=arg2)
-// data2 = data
-// data2[col] = base
+// -- facts --
 
 .input AssignVar
 .input AssignStrConstant
@@ -59,16 +51,17 @@
 .input LoadIndex
 .input StoreIndex
 
-.input AssignInvoke
+
 .input Invoke
-.input AssignReturnValue
 
 .input ActualParam
 .input FormalParam
 .input ActualKeyParam
 .input FormalKeyParam
+.input ActualReturn
+.input FormalReturn
 .input CallGraphEdge
-.input MethodUpdate
+// .input MethodUpdate
 .input VarType
 .input Alloc
 
@@ -81,27 +74,59 @@
 
 
 TaintSourceMethod("numpy.mean").
-ParamToBaseTaintTransferMethod(1, "pandas.Series.fillna").
+// ParamToRetTaintTransferMethod(1, "pandas.Series.fillna").
+ParamToParamTaintTransferMethod(0, 1, "pandas.Series.fillna").
 
 // -- analysis --
 
 .decl VarPointsTo(var:Var, value:Value)
-.decl TaintedValue(value:Value)
+.decl FieldPointsTo(base:Value, field:Field, value:Value)
+
+.decl InterProcAssign(to:Var, from:Var)
+
+// .decl TaintedValue(value:Value)
 .decl TaintedVar(var:Var)
 
 VarPointsTo(var, value) :- Alloc(var, value).
 VarPointsTo(to, value) :- 
-    LoadIndex(to, from, field),
-    VarPointsTo(from, value).
-VarPointsTo(to, value) :- 
-    StoreIndex(to, field, from),
-    VarPointsTo(from, value).
-VarPointsTo(to, value) :- 
     AssignVar(to, from),
     VarPointsTo(from, value).
-// VarPointsTo(to, value) :-
-//     AssignInvoke(to, invo),
-//     AssignReturnValue(invo, value).
+VarPointsTo(to, value) :- 
+    LoadIndex(to, base, _),
+    VarPointsTo(base, value).
+VarPointsTo(base, value) :- 
+    StoreIndex(base, _, from),
+    VarPointsTo(from, value).
+VarPointsTo(to, value) :- 
+    LoadField(to, base, fld),
+    VarPointsTo(base, baseValue),
+    FieldPointsTo(baseValue, fld, value).
+FieldPointsTo(baseValue, fld, value) :-
+    StoreField(base, fld, from),
+    VarPointsTo(base, baseValue),
+    VarPointsTo(from, value).
+
+InterProcAssign(to, from) :-
+    CallGraphEdge(invo, meth),
+    FormalParam(index, meth, to),
+    ActualParam(index, invo, from).
+
+InterProcAssign(to, from) :-
+    CallGraphEdge(invo, meth),
+    FormalKeyParam(to, meth),
+    ActualKeyParam(to, invo, from).
+
+InterProcAssign(to, from) :-
+    CallGraphEdge(invo, meth),
+    FormalReturn(meth, from),
+    ActualReturn(invo, to).
+
+VarPointsTo(to, value) :- 
+    InterProcAssign(to, from),
+    VarPointsTo(from, value).
+
+IsHeapObject(value) :-
+    Alloc(_, value).
 
 // TaintedValue(value) :-
 //     MethodReturnTainted(meth),
@@ -116,29 +141,54 @@ VarPointsTo(to, value) :-
 //     VarPointsTo(var, value),
 //     TaintedValue(value).
 
-TaintedValue(value) :-
-    VarPointsTo(var, value),
-    TaintedVar(var).
+// TaintedValue(value) :-
+//     VarPointsTo(var, value),
+//     TaintedVar(var).
 
-TaintedVar(var) :-
-    VarPointsTo(var, value),
-    TaintedValue(value).
+// TaintedVar(var) :-
+//     VarPointsTo(var, value),
+//     TaintedValue(value).
 
-TaintedVar(var) :-
-    AssignInvoke(var, invo),
+IsTaintObject(value),
+VarPointsTo(var, value) :-
+    value = ValueIdMacro(invo, meth),
+    ActualReturn(invo, var),
     CallGraphEdge(invo, meth),
     TaintSourceMethod(meth).
 
-TaintedVar(var) :-
-    ActualParam(index, invo, arg),
-    ActualParam(0, invo, var),
+IsTaintObject(newValue),
+VarPointsTo(to, newValue) :-
+    newValue = ValueIdMacro(value, meth),
+    ActualParam(toIndex, invo, to),
+    ActualParam(fromIndex, invo, from),
     CallGraphEdge(invo, meth),
-    ParamToBaseTaintTransferMethod(index, meth),
-    TaintedVar(arg).
+    ParamToParamTaintTransferMethod(toIndex, fromIndex, meth),
+    VarPointsTo(from, value),
+    IsTaintObject(value).
+
+IsTaintObject(newValue),
+VarPointsTo(var, newValue) :-
+    newValue = ValueIdMacro(value, meth),
+    ActualParam(index, invo, arg),
+    ActualReturn(invo, var),
+    CallGraphEdge(invo, meth),
+    ParamToRetTaintTransferMethod(index, meth),
+    VarPointsTo(arg, value),
+    IsTaintObject(value).
+
+TaintedVar(var) :-
+    VarPointsTo(var, value),
+    IsTaintObject(value).
+
+// TaintedVar(to) :-
+//     VarPointsTo(to, value),
+//     VarPointsTo(from, value),
+//     VarPointsTo(from, taintValue),
+//     IsTaintObject(taintValue).
 
 .output VarPointsTo
 .output TaintedVar
-.output TaintedValue
+// .output TaintedValue
 
 // .decl Test(meth:Invocation, value:Value)
 
