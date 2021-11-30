@@ -8,4 +8,4 @@ import numpy as np
 # a, b = b, a
 df = pd.read_csv('data.csv')
 l = len(df) 
-df['Fare'] = df['Fare'].fillna(np.mean(df['Fare']), inplace = True)
+df['Fare'] = df['Fare'].fillna(np.mean(df['Fare']), inplace = False)
