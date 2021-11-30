@@ -1,0 +1,4 @@
+.vscode/
+tests/*-fact/
+tests/*.json
+tests/*.ir.py
