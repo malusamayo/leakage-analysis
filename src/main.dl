@@ -25,15 +25,15 @@
 .decl FormalParam(index:number, meth:Method, var:Var)
 .decl ActualKeyParam(keyword:Var, invo:Invocation, var:Var)
 .decl FormalKeyParam(keyword:Var, meth:Method)
-.decl ActualReturn(invo:Invocation, var:Var)
-.decl FormalReturn(meth:Method, var:Var)
+.decl ActualReturn(index:number, invo:Invocation, var:Var)
+.decl FormalReturn(index:number, meth:Method, var:Var)
 .decl CallGraphEdge(invo:Invocation, meth:Method)
 // .decl MethodUpdate(meth:Method, index:number)
 
 // taint analysis facts
 .decl TaintSourceMethod(?method:Method)
 .decl ParamToParamTaintTransferMethod(?to:number, ?from:number, ?method:Method)
-.decl ParamToRetTaintTransferMethod(?index:number, ?method:Method)
+.decl ParamToRetTaintTransferMethod(?to:number, ?from:number, ?method:Method)
 
 .decl VarType(var:Var, type:Type)
 .decl Alloc(var:Var, value:Value)
@@ -74,7 +74,7 @@
 
 
 TaintSourceMethod("numpy.mean").
-// ParamToRetTaintTransferMethod(1, "pandas.Series.fillna").
+// ParamToRetTaintTransferMethod(0, 1, "pandas.Series.fillna").
 ParamToParamTaintTransferMethod(0, 1, "pandas.Series.fillna").
 
 // -- analysis --
@@ -86,6 +86,7 @@ ParamToParamTaintTransferMethod(0, 1, "pandas.Series.fillna").
 
 // .decl TaintedValue(value:Value)
 .decl TaintedVar(var:Var)
+.decl IsTaintedFrom(from:Var, to:Var, meth:Method)
 
 VarPointsTo(var, value) :- Alloc(var, value).
 VarPointsTo(to, value) :- 
@@ -118,8 +119,8 @@ InterProcAssign(to, from) :-
 
 InterProcAssign(to, from) :-
     CallGraphEdge(invo, meth),
-    FormalReturn(meth, from),
-    ActualReturn(invo, to).
+    FormalReturn(index, meth, from),
+    ActualReturn(index, invo, to).
 
 VarPointsTo(to, value) :- 
     InterProcAssign(to, from),
@@ -152,29 +153,30 @@ IsHeapObject(value) :-
 IsTaintObject(value),
 VarPointsTo(var, value) :-
     value = ValueIdMacro(invo, meth),
-    ActualReturn(invo, var),
+    ActualReturn(_, invo, var),
     CallGraphEdge(invo, meth),
     TaintSourceMethod(meth).
 
-IsTaintObject(newValue),
-VarPointsTo(to, newValue) :-
-    newValue = ValueIdMacro(value, meth),
+IsTaintedFrom(from, to, meth):-
     ActualParam(toIndex, invo, to),
     ActualParam(fromIndex, invo, from),
     CallGraphEdge(invo, meth),
-    ParamToParamTaintTransferMethod(toIndex, fromIndex, meth),
-    VarPointsTo(from, value),
-    IsTaintObject(value).
+    ParamToParamTaintTransferMethod(toIndex, fromIndex, meth).
+
+IsTaintedFrom(from, to, meth) :-
+    ActualParam(fromIndex, invo, from),
+    ActualReturn(toIndex, invo, to),
+    CallGraphEdge(invo, meth),
+    ParamToRetTaintTransferMethod(toIndex, fromIndex, meth).
 
 IsTaintObject(newValue),
 VarPointsTo(var, newValue) :-
     newValue = ValueIdMacro(value, meth),
-    ActualParam(index, invo, arg),
-    ActualReturn(invo, var),
-    CallGraphEdge(invo, meth),
-    ParamToRetTaintTransferMethod(index, meth),
-    VarPointsTo(arg, value),
-    IsTaintObject(value).
+    IsTaintedFrom(from, to, meth),
+    VarPointsTo(from, value),
+    IsTaintObject(value),
+    VarPointsTo(to, oldValue),
+    Alloc(var, oldValue).
 
 TaintedVar(var) :-
     VarPointsTo(var, value),

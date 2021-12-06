@@ -67,7 +67,7 @@ class FactGenerator(ast.NodeVisitor):
             FManager.add_fact("AssignVar", (target_name, value.id))
         elif type(value) == ast.Call:
             cur_invo = self.visit_Call(value)
-            FManager.add_fact("ActualReturn", (cur_invo, target_name))
+            FManager.add_fact("ActualReturn", (0, cur_invo, target_name))
             FManager.add_fact("Alloc", (target_name, FManager.get_new_heap()))
         elif type(value) == ast.Constant:
             if type(value.value) == int:
@@ -90,7 +90,7 @@ class FactGenerator(ast.NodeVisitor):
             print("Unkown source type! " + str(type(value)))
             assert 0
 
-    def visit_Assign(self,node):
+    def visit_Assign(self, node):
         # print('Node type: Assign and fields: ', node.targets)
         for target in node.targets:
             if type(target) == ast.Name:
@@ -105,6 +105,14 @@ class FactGenerator(ast.NodeVisitor):
                 assert type(target.slice.value) == ast.Name
                 assert type(node.value) == ast.Name
                 FManager.add_fact("StoreIndex", (target.value.id, target.slice.value.id, node.value.id))
+            elif type(target) == ast.Tuple:
+                
+                assert type(node.value) == ast.Call
+                cur_invo = self.visit_Call(node.value)
+                for i, t in enumerate(target.elts):
+                    assert type(t) == ast.Name
+                    FManager.add_fact("ActualReturn", (i, cur_invo, t.id))
+                    FManager.add_fact("Alloc", (t.id, FManager.get_new_heap()))
             else:
                 print("Unkown target type! " + str(type(target)))
                 assert 0

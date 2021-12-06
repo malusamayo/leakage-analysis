@@ -46,37 +46,57 @@ class CodeTransformer(ast.NodeTransformer):
             assert 0
         return nodes
 
+    def handle_single_assign(self, target, value):
+        nodes = []
+        if type(target) == ast.Name:
+            nodes += self.handle_assign_value(target, value)
+        elif type(target) == ast.Attribute:
+            nodes1, attr = self.visit_Attribute(target) #, assigned=True)
+            from_new_var = FManager.get_new_var()
+            nodes2 = self.visit_Assign(ast.Assign([ast.Name(from_new_var)], value))
+            nodes = nodes + nodes1 + nodes2 + [ast.Assign([attr], ast.Name(from_new_var))]
+        elif type(target) == ast.Subscript:
+            nodes1, subscript = self.visit_Subscript(target)
+            from_new_var = FManager.get_new_var()
+            nodes2 = self.visit_Assign(ast.Assign([ast.Name(from_new_var)], value))
+            nodes = nodes + nodes1 + nodes2 + [ast.Assign([subscript], ast.Name(from_new_var))]
+        elif type(target) == ast.Tuple:
+            if type(value) == ast.Tuple and len(target.elts) == len(value.elts):
+                new_vars = []
+                for v in value.elts:
+                    to_new_var = FManager.get_new_var()
+                    new_vars.append(to_new_var)
+                    nodes += self.visit_Assign(ast.Assign([ast.Name(to_new_var)], v))
+                for v_name, t in zip(new_vars, target.elts):
+                    nodes += self.visit_Assign(ast.Assign([t], ast.Name(v_name)))
+            elif type(value) == ast.Call:
+                new_vars = [FManager.get_new_var() for v in target.elts]
+                nodes1, call = self.visit_Call(value)
+                nodes = nodes + nodes1 + [ast.Assign([ast.Tuple([ast.Name(v ) for v in new_vars])], call)]
+                for v, var in zip(target.elts, new_vars):
+                    nodes += self.visit_Assign(ast.Assign([v], ast.Name(var)))
+            elif type(value) == ast.Name:
+                for i, t in enumerate(target.elts):
+                    nodes += self.visit_Assign(ast.Assign([t], ast.Subscript(value, ast.Index(ast.Constant(i, "")))))
+            else:
+                assert 0
+        else:
+            print("Unkown target type! " + str(type(target)))
+            assert 0
+        return nodes
+
+    def visit_AnnAssign(self, node):
+        nodes = self.handle_single_assign(node.target, node.value)
+        if type(node.target) == ast.Name:
+            assert node.target.id == nodes[-1].targets[0].id
+            nodes[-1] = ast.AnnAssign(node.target, node.annotation, nodes[-1].value, simple = node.simple)
+        return nodes
+
     def visit_Assign(self,node):
         # print('Node type: Assign and fields: ', node.targets)
         nodes = []
         for target in node.targets:
-            if type(target) == ast.Name:
-                nodes += self.handle_assign_value(target, node.value)
-            elif type(target) == ast.Attribute:
-                nodes1, attr = self.visit_Attribute(target) #, assigned=True)
-                from_new_var = FManager.get_new_var()
-                nodes2 = self.visit_Assign(ast.Assign([ast.Name(from_new_var)], node.value))
-                nodes = nodes + nodes1 + nodes2 + [ast.Assign([attr], ast.Name(from_new_var))]
-            elif type(target) == ast.Subscript:
-                nodes1, subscript = self.visit_Subscript(target)
-                from_new_var = FManager.get_new_var()
-                nodes2 = self.visit_Assign(ast.Assign([ast.Name(from_new_var)], node.value))
-                nodes = nodes + nodes1 + nodes2 + [ast.Assign([subscript], ast.Name(from_new_var))]
-            elif type(target) == ast.Tuple:
-                if type(node.value) == ast.Tuple and len(target.elts) == len(node.value.elts):
-                    new_vars = []
-                    for v in node.value.elts:
-                        to_new_var = FManager.get_new_var()
-                        new_vars.append(to_new_var)
-                        nodes += self.visit_Assign(ast.Assign([ast.Name(to_new_var)], v))
-                    for v_name, t in zip(new_vars, target.elts):
-                        nodes += self.visit_Assign(ast.Assign([t], ast.Name(v_name)))
-                else:
-                    assert 0
-            else:
-                print("Unkown target type! " + str(type(target)))
-                assert 0
-
+            nodes += self.handle_single_assign(target, node.value)
         return nodes
     
     def visit_Subscript(self, node, assigned = False):
@@ -94,7 +114,7 @@ class CodeTransformer(ast.NodeTransformer):
             nodes2, slice = self.visit_Index(node.slice)
         else:
             assert 0
-        return nodes + nodes2, ast.Subscript(ast.Name(new_var), slice, node.ctx)
+        return nodes + nodes2, ast.Subscript(ast.Name(new_var), slice)
 
     def visit_Index(self, node):
         nodes = []
@@ -171,7 +191,7 @@ class CodeTransformer(ast.NodeTransformer):
             except ValueError:
                 name_map[node.id] = node.id + '$0'
             # nodes += self.visit_Assign(ast.Assign([ast.Name(name_map[node.id])], ast.Name(old_id)))
-        return nodes, name_map[node.id]
+        return nodes, name_map[node.id].replace('$', '_')
 
     def visit_Str(self, node):
         return node
