@@ -1,8 +1,8 @@
 .vscode/
+.pytest_cache/
 tests/inputs/*-fact/
 tests/inputs/*.json
 tests/inputs/*.ir.py
-tests/.pytest_cache
 tests/__pycache__
 
 src/ssa.py

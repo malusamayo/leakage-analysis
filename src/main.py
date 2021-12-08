@@ -2,8 +2,8 @@ import os, sys
 import ast
 import astunparse
 import json
-import factgen
-from irgen import CodeTransformer
+from . import factgen
+from .irgen import CodeTransformer
 
 
 

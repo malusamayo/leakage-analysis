@@ -2,7 +2,7 @@ import os, sys
 import ast
 import astunparse
 import json
-from factgen import FactManager
+from .factgen import FactManager
 
 
 class CodeTransformer(ast.NodeTransformer):
