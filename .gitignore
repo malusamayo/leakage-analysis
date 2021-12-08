@@ -1,5 +1,9 @@
 .vscode/
-tests/*-fact/
-tests/*.json
-tests/*.ir.py
+tests/inputs/*-fact/
+tests/inputs/*.json
+tests/inputs/*.ir.py
+tests/.pytest_cache
+tests/__pycache__
+
 src/ssa.py
+src/__pycache__
