@@ -12,12 +12,15 @@ def template(test_file, shouldBeTainted):
     isTainted = df["method"].map(lambda m: m == "LogisticRegression.fit").any()
     assert isTainted == shouldBeTainted, "Leak undetected!" if shouldBeTainted else "False leak detected!"
 
-class TestClass:
-    def test0(self):
-        template("test0.py", shouldBeTainted=True)
 
-    def test1(self):
-        template("test1.py", shouldBeTainted=False)
+def test0():
+    template("test0.py", shouldBeTainted=True)
 
-    def test2(self):
-        template("test2.py", shouldBeTainted=True)
+def test1():
+    template("test1.py", shouldBeTainted=False)
+
+def test2():
+    template("test2.py", shouldBeTainted=True)
+
+def test_titanic():
+    template("titanic0.py", shouldBeTainted=True)
