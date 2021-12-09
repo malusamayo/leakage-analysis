@@ -14,10 +14,12 @@
 .decl AssignVar(to:Var, from:Var)
 .decl AssignStrConstant(to:Var, constant:symbol)
 .decl AssignBoolConstant(to:Var, constant:symbol)
+.decl AssignBinOp(to:Var, left:Var, op:symbol, right:Var)
 .decl LoadField(to:Var, base:Var, f:Field)
 .decl StoreField(base:Var, f:Field, from:Var)
-.decl LoadIndex(base:Var, from:Var, i:Index)
-.decl StoreIndex(to:Var, base:Index, from:Var)
+.decl LoadIndex(to:Var, base:Var, i:Index)
+.decl StoreIndex(base:Var, i:Index, from:Var)
+.decl LoadSlice(to:Var, base:Var, st:Var, ed:Var, step:Var)
 
 // inter-procedural facts
 .decl Invoke(invo:Invocation)
@@ -49,10 +51,12 @@
 .input AssignVar
 .input AssignStrConstant
 .input AssignBoolConstant
+.input AssignBinOp
 .input LoadField
 .input StoreField
 .input LoadIndex
 .input StoreIndex
+.input LoadSlice
 
 
 .input Invoke
@@ -79,8 +83,11 @@
 TaintSourceMethod("numpy.mean", 1).
 SinkMethod("LogisticRegression.fit", 1).
 SinkMethod("LogisticRegression.fit", 2).
-// ParamToRetTaintTransferMethod(0, 1, "pandas.Series.fillna").
+ParamToRetTaintTransferMethod(0, 0, "pandas.Series.fillna").
+ParamToRetTaintTransferMethod(0, 1, "pandas.Series.fillna").
 ParamToParamTaintTransferMethod(0, 1, "pandas.Series.fillna").
+ParamToRetTaintTransferMethod(0, 0, "pandas.Series.drop").
+ParamToRetTaintTransferMethod(0, 0, "pandas.DataFrame.drop").
 
 ParamToRetTaintTransferMethod(0, 1, "train_test_split").
 ParamToRetTaintTransferMethod(1, 1, "train_test_split").
@@ -127,6 +134,10 @@ FieldPointsTo(baseValue, fld, value) :-
     VarPointsTo(base, baseValue),
     VarPointsTo(from, value).
 
+VarPointsTo(to, value) :- 
+    LoadSlice(to, from, _, _, _),
+    VarPointsTo(from, value).
+
 InterProcAssign(to, from) :-
     CallGraphEdge(invo, meth),
     FormalParam(index, meth, to),
@@ -159,6 +170,14 @@ IsHeapSubset(subset, set) :-
     IsHeapObject(subset),
     CallGraphEdge(invo, meth),
     ParamToRetSubsetMethod(toIndex, fromIndex, meth).
+
+IsHeapSubset(subset, set) :-
+    VarPointsTo(base, set),
+    IsHeapObject(set),
+    VarPointsTo(to, subset),
+    IsHeapObject(subset),
+    LoadSlice(to, base, st, ed, step),
+    (st != "none" ; ed != "none" ; step != "none").
 
 IsHeapSubset(newSubset, set) :-
     ActualParam(fromIndex, invo, from),

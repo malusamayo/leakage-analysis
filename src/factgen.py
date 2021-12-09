@@ -15,10 +15,13 @@ class FactManager(object):
             "AssignBoolConstant": [],
             "AssignIntConstant": [],
             "AssignFloatConstant": [],
+            "AssignBinOp": [],
             "LoadField": [],
             "StoreField": [],
             "LoadIndex": [],
             "StoreIndex": [],
+            "LoadSlice": [],
+            "StoreSlice": [],
             "Invoke": [],
             "CallGraphEdge": [],
             "ActualParam": [],
@@ -51,6 +54,26 @@ class FactManager(object):
         old_heap = self.heap_num
         self.heap_num += 1
         return "$heap" + str(old_heap)
+
+    def get_new_list(self):
+        old_var = self.var_num
+        self.var_num += 1
+        return "$list" + str(old_var)
+
+    def get_new_tuple(self):
+        old_var = self.var_num
+        self.var_num += 1
+        return "$tuple" + str(old_var)
+
+    def get_new_set(self):
+        old_var = self.var_num
+        self.var_num += 1
+        return "$set" + str(old_var)
+
+    def get_new_dict(self):
+        old_var = self.var_num
+        self.var_num += 1
+        return "$dict" + str(old_var)
 
 
 class FactGenerator(ast.NodeVisitor):
@@ -88,14 +111,38 @@ class FactGenerator(ast.NodeVisitor):
                 self.FManager.add_fact("AssignFloatConstant", (target_name, value.value))
             elif type(value.value) == str:
                 self.FManager.add_fact("AssignStrConstant", (target_name, value.value))
+        elif type(value) == ast.List:
+            new_iter = self.FManager.get_new_list()
+            self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
+            self.FManager.add_fact("AssignVar", (target_name, new_iter))
+        elif type(value) == ast.Set:
+            new_iter = self.FManager.get_new_set()
+            self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
+            self.FManager.add_fact("AssignVar", (target_name, new_iter))
+        elif type(value) == ast.Dict:
+            new_iter = self.FManager.get_new_dict()
+            self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
+            self.FManager.add_fact("AssignVar", (target_name, new_iter))
+        elif type(value) == ast.Tuple:
+            new_iter = self.FManager.get_new_tuple()
+            self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
+            self.FManager.add_fact("AssignVar", (target_name, new_iter))
         elif type(value) == ast.Subscript:
             assert type(value.value) == ast.Name
-            assert type(value.slice) == ast.Index # Slice not handled yet
-            assert type(value.slice.value) == ast.Name
-            self.FManager.add_fact("LoadIndex", (target_name, value.value.id, value.slice.value.id))
+            if type(value.slice) == ast.Index:
+                assert type(value.slice.value) == ast.Name
+                self.FManager.add_fact("LoadIndex", (target_name, value.value.id, value.slice.value.id))
+            elif type(value.slice) == ast.Slice:
+                slice_ids = [x.id if x else "none" for x in [value.slice.lower, value.slice.upper, value.slice.step]]
+                self.FManager.add_fact("LoadSlice", (target_name, value.value.id, *slice_ids))
+                self.FManager.add_fact("Alloc", (target_name, self.FManager.get_new_heap())) # should be generated on the fly
         elif type(value) == ast.Attribute:
             assert type(value.value) == ast.Name
             self.FManager.add_fact("LoadField", (target_name, value.value.id, value.attr))
+        elif type(value) == ast.BinOp:
+            assert type(value.left) == ast.Name
+            assert type(value.right) == ast.Name
+            self.FManager.add_fact("AssignBinOp", (target_name, value.left.id, value.op.__class__.__name__, value.right.id))
         else:
             print("Unkown source type! " + str(type(value)))
             assert 0
@@ -129,10 +176,6 @@ class FactGenerator(ast.NodeVisitor):
 
         return node
     
-
-    # def visit_BinOp(self, node):
-    #     print('Node type: BinOp and fields: ', node._fields)
-    #     return ast.NodeTransformer.generic_visit(self, node)
 
     def visit_Call(self, node):
         cur_invo = self.FManager.get_new_invo()
