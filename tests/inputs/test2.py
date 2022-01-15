@@ -14,3 +14,4 @@ X_train['Fare'] = X_train['Fare'].fillna(np.mean(df['Fare']), inplace = False)
 from sklearn.linear_model import LogisticRegression
 clf = LogisticRegression(penalty='l2', solver="sag", random_state=0)
 clf.fit(X_train, y_train)
+y_pred = clf.predict(X_test)
