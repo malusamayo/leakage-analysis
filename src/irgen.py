@@ -19,10 +19,44 @@ class CodeTransformer(ast.NodeTransformer):
 
     def generic_visit(self, node):
         rets = ast.NodeTransformer.generic_visit(self, node)
+        if type(node) not in [ast.Module, ast.FunctionDef, ast.Import, ast.ImportFrom, ast.alias, ast.Expr]:
+            print(type(node))
         # if type(rets) != tuple:
         #     return rets #, ast.Pass()
         # else:
         return rets
+
+    def visit_Body(self, body):
+        if isinstance(body, list):
+            new_values = []
+            for value in body:
+                if isinstance(value, ast.AST):
+                    value = self.visit(value)
+                    if value is None:
+                        continue
+                    elif not isinstance(value, ast.AST):
+                        new_values.extend(value)
+                        continue
+                new_values.append(value)
+            body[:] = new_values
+        return body
+
+    def visit_For(self, node):
+        nodes, new_iter = self.visitNameOnly(node.iter)
+        node.iter = new_iter
+        node.body = self.visit_Body(node.body)
+        return nodes, node
+
+    def visit_If(self, node):
+        nodes, new_test = self.visitNameOnly(node.test)
+        node.test = new_test
+        node.body = self.visit_Body(node.body)
+        return nodes, node
+
+    def visit_Return(self, node):
+        nodes1, newValue = self.visitNameOnly(node.value)
+        node.value = newValue
+        return nodes1 + [node]
 
     def visit_Expr(self, node):
         rets = self.generic_visit(node)
@@ -34,7 +68,7 @@ class CodeTransformer(ast.NodeTransformer):
     def handle_assign_value(self, target, value):
         assert(type(target) == ast.Name)
         nodes = []
-        if type(value) in [ast.Attribute, ast.Name, ast.Call, ast.Constant, ast.Subscript, ast.List, ast.Dict, ast.BinOp]:
+        if type(value) in [ast.Attribute, ast.Name, ast.Call, ast.Constant, ast.Subscript, ast.List, ast.Dict, ast.BinOp, ast.ListComp]:
             nodes, new_node = self.visit(value)
             nodes1, target = self.visit_Name(target, assigned = True)
             nodes = nodes + nodes1 + [ast.Assign([target], new_node)]
@@ -121,9 +155,20 @@ class CodeTransformer(ast.NodeTransformer):
 
     def visit_BinOp(self, node):
         nodes = []
-        nodes1, l = self.visit(node.left)
-        nodes2, r = self.visit(node.right)
+        nodes1, l = self.visitNameOnly(node.left)
+        nodes2, r = self.visitNameOnly(node.right)
         return nodes + nodes1 + nodes2, ast.BinOp(l, node.op, r)
+
+    def visit_Compare(self, node):
+        nodes = []
+        new_coms = []
+        nodes1, l = self.visitNameOnly(node.left)
+        nodes += nodes1
+        for com in node.comparators:
+            nodes2, new_com = self.visitNameOnly(com)
+            nodes += nodes2
+            new_coms.append(new_com)
+        return nodes, ast.Compare(l, node.ops, new_coms)
 
     def visit_Call(self, node):
         nodes = []
@@ -140,6 +185,9 @@ class CodeTransformer(ast.NodeTransformer):
         return nodes + nodes1, ast.Attribute(new_v, node.attr)
 
     def visit_arguments(self, args):
+        # arg list in function definition
+        if type(args) == ast.arguments:
+            return args
         nodes = []
         arg_names = []
         for i, arg in enumerate(args):
@@ -229,3 +277,16 @@ class CodeTransformer(ast.NodeTransformer):
             nodes += newNodes
             new_values.append(new_v)
         return nodes, ast.Dict(new_keys, new_values)
+
+    # keep exprs below unchanged
+    def visit_Lambda(self, node):
+        return [], node
+
+    def visit_ListComp(self, node):
+        return [], node
+
+    def visit_SetComp(self, node):
+        return [], node
+
+    def visit_DictComp(self, node):
+        return [], node

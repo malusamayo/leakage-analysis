@@ -13,6 +13,7 @@ class FactManager(object):
             "AssignVar": [],
             "AssignStrConstant": [],
             "AssignBoolConstant": [],
+            "AssignBool": [],
             "AssignIntConstant": [],
             "AssignFloatConstant": [],
             "AssignBinOp": [],
@@ -111,20 +112,24 @@ class FactGenerator(ast.NodeVisitor):
                 self.FManager.add_fact("AssignFloatConstant", (target_name, value.value))
             elif type(value.value) == str:
                 self.FManager.add_fact("AssignStrConstant", (target_name, value.value))
-        elif type(value) == ast.List:
+        elif type(value) in [ast.List, ast.ListComp]:
             new_iter = self.FManager.get_new_list()
             self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
             self.FManager.add_fact("AssignVar", (target_name, new_iter))
-        elif type(value) == ast.Set:
+        elif type(value) in [ast.Set, ast.SetComp]:
             new_iter = self.FManager.get_new_set()
             self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
             self.FManager.add_fact("AssignVar", (target_name, new_iter))
-        elif type(value) == ast.Dict:
+        elif type(value) in [ast.Dict, ast.DictComp]:
             new_iter = self.FManager.get_new_dict()
             self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
             self.FManager.add_fact("AssignVar", (target_name, new_iter))
         elif type(value) == ast.Tuple:
             new_iter = self.FManager.get_new_tuple()
+            self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
+            self.FManager.add_fact("AssignVar", (target_name, new_iter))
+        elif type(value) == ast.Lambda:
+            new_iter = self.FManager.get_new_heap()
             self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
             self.FManager.add_fact("AssignVar", (target_name, new_iter))
         elif type(value) == ast.Subscript:
@@ -143,6 +148,8 @@ class FactGenerator(ast.NodeVisitor):
             assert type(value.left) == ast.Name
             assert type(value.right) == ast.Name
             self.FManager.add_fact("AssignBinOp", (target_name, value.left.id, value.op.__class__.__name__, value.right.id))
+        elif type(value) == ast.Compare:
+            self.FManager.add_fact("AssignBool", (target_name, "boolean_placeholder"))
         else:
             print("Unkown source type! " + str(type(value)))
             assert 0
@@ -200,7 +207,9 @@ class FactGenerator(ast.NodeVisitor):
                 self.FManager.add_fact("ActualParam", (0, cur_invo, node.value.id))
             self.FManager.add_fact("CallGraphEdge", (cur_invo, method_sig))
 
-    def visit_arguments(self, args, cur_invo):
+    def visit_arguments(self, args, cur_invo=None):
+        if type(args) == ast.arguments:
+            return args
         for i, arg in enumerate(args):
             assert type(arg) == ast.Name
             self.FManager.add_fact("ActualParam", (i + 1, cur_invo, arg.id))
@@ -211,4 +220,5 @@ class FactGenerator(ast.NodeVisitor):
             assert type(keyword.value) == ast.Name
             self.FManager.add_fact("ActualKeyParam", (keyword.arg, cur_invo, keyword.value.id))
         return keywords
+
 
