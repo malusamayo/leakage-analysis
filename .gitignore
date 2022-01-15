@@ -3,7 +3,5 @@
 tests/inputs/*-fact/
 tests/inputs/*.json
 tests/inputs/*.ir.py
-tests/__pycache__
-
+*/__pycache__
 src/ssa.py
-src/__pycache__
