@@ -33,10 +33,15 @@
 // .decl MethodUpdate(meth:Method, index:number)
 
 // taint analysis facts
-.decl TaintSourceMethod(?method:Method, ?labelIdx:number)
-.decl SinkMethod(?method:Method, ?index:number)
+.decl TaintSourceMethod(?method:Method, ?to:number, ?from:number, ?taintType:symbol)
+// .decl TaintSourceRetMethod(?method:Method, ?index:number, ?taintType:symbol)
+// .decl TaintSourceSetRetMethod(?method:Method, ?to:number, ?from:number, ?taintType:symbol)
+.decl SinkMethod(?method:Method, ?index:number, ?label:symbol)
 .decl ParamToParamTaintTransferMethod(?to:number, ?from:number, ?method:Method)
 .decl ParamToRetTaintTransferMethod(?to:number, ?from:number, ?method:Method)
+// .decl ParamToParamSetTaintTransferMethod(?to:number, ?from:number, ?method:Method)
+// .decl ParamToRetSetTaintTransferMethod(?to:number, ?from:number, ?method:Method)
+
 
 .decl VarType(var:Var, type:Type)
 .decl Alloc(var:Var, value:Value)
@@ -44,7 +49,7 @@
 .decl IsHeapObject(value:Value)
 .decl IsTaintObject(value:Value)
 .decl ParamToRetSubsetMethod(?to:number, ?from:number, ?method:Method)
-.decl ParamToRetSubsetTransferMethod(?to:number, ?from:number, ?method:Method)
+.decl ParamToRetEquivMethod(?to:number, ?from:number, ?method:Method)
 
 // -- facts --
 
@@ -79,26 +84,39 @@
 // // .decl ParamIndexToBaseTaintTransferMethod(?index:number, ?method:Method)
 // .decl ParamToRetTaintTransferMethod(?index:number, ?method:Method)
 
+// TaintSourceRetMethod("pandas.read_csv", 0, "row").
+TaintSourceMethod("numpy.mean", 0, 1, "rowset").
+TaintSourceMethod("TfidfTransformer.transform", 0, 1, "rowset").
+SinkMethod("LogisticRegression.fit", 1, "train").
+SinkMethod("LogisticRegression.fit", 2, "train").
+SinkMethod("LogisticRegression.predict", 1, "test").
 
-TaintSourceMethod("numpy.mean", 1).
-SinkMethod("LogisticRegression.fit", 1).
-SinkMethod("LogisticRegression.fit", 2).
-ParamToRetTaintTransferMethod(0, 0, "pandas.Series.fillna").
+SinkMethod("trainSinkPoint", 1, "train").
+SinkMethod("testSinkPoint", 1, "test").
+
+// ParamToRetTaintTransferMethod(0, 0, "pandas.Series.fillna").
+// ParamToRetTaintTransferMethod(0, 0, "pandas.Series.drop").
+// ParamToRetTaintTransferMethod(0, 0, "pandas.DataFrame.drop").
+
 ParamToRetTaintTransferMethod(0, 1, "pandas.Series.fillna").
 ParamToParamTaintTransferMethod(0, 1, "pandas.Series.fillna").
-ParamToRetTaintTransferMethod(0, 0, "pandas.Series.drop").
-ParamToRetTaintTransferMethod(0, 0, "pandas.DataFrame.drop").
 
-ParamToRetTaintTransferMethod(0, 1, "train_test_split").
-ParamToRetTaintTransferMethod(1, 1, "train_test_split").
-ParamToRetTaintTransferMethod(2, 2, "train_test_split").
-ParamToRetTaintTransferMethod(3, 2, "train_test_split").
+// ParamToRetTaintTransferMethod(0, 1, "train_test_split").
+// ParamToRetTaintTransferMethod(1, 1, "train_test_split").
+// ParamToRetTaintTransferMethod(2, 2, "train_test_split").
+// ParamToRetTaintTransferMethod(3, 2, "train_test_split").
+
 ParamToRetSubsetMethod(0, 1, "train_test_split").
 ParamToRetSubsetMethod(1, 1, "train_test_split").
 ParamToRetSubsetMethod(2, 2, "train_test_split").
 ParamToRetSubsetMethod(3, 2, "train_test_split").
-ParamToRetSubsetTransferMethod(0, 0, "pandas.Series.fillna").
 
+ParamToRetEquivMethod(0, 0, "pandas.Series.fillna").
+ParamToRetEquivMethod(0, 0, "pandas.Series.drop").
+ParamToRetEquivMethod(0, 0, "pandas.DataFrame.drop").
+ParamToRetEquivMethod(0, 0, "tuple[Unknown, Unbound | Any | float | Unknown | ndarray | None] | Unknown | Any | csr_matrix | ndarray.toarray").
+ParamToRetEquivMethod(0, 1, "pandas.DataFrame").
+ParamToRetEquivMethod(0, 1, "TfidfTransformer.transform").
 
 // -- analysis --
 
@@ -109,11 +127,15 @@ ParamToRetSubsetTransferMethod(0, 0, "pandas.Series.fillna").
 
 // .decl TaintedValue(value:Value)
 .decl TaintedVar(var:Var)
-.decl TaintLabel(value:Value, label:Value)
-.decl IsTaintedFrom(from:Var, to:Var, meth:Method)
+.decl TaintLabel(taintValue:Value, srcValue:Value, taintType:symbol)
+// .decl IsTaintedFrom(from:Var, to:Var, meth:Method)
 .decl Leak(value:Value, sink:Invocation, meth:Method)
 
-.decl IsHeapSubset(subset:Value, set:Value)
+.decl TaintFrom(to:Var, from:Var)
+
+.decl ValueFlowTo(to:Value, from:Value)
+
+// .decl IsHeapSubset(subset:Value, set:Value)
 
 VarPointsTo(var, value) :- Alloc(var, value).
 VarPointsTo(to, value) :- 
@@ -161,120 +183,134 @@ VarPointsTo(to, value) :-
 IsHeapObject(value) :-
     Alloc(_, value).
 
-IsHeapSubset(subset, set) :-
-    ActualParam(fromIndex, invo, from),
-    VarPointsTo(from, set),
-    IsHeapObject(set),
-    ActualReturn(toIndex, invo, to),
-    VarPointsTo(to, subset),
-    IsHeapObject(subset),
-    CallGraphEdge(invo, meth),
-    ParamToRetSubsetMethod(toIndex, fromIndex, meth).
-
-IsHeapSubset(subset, set) :-
-    VarPointsTo(base, set),
-    IsHeapObject(set),
-    VarPointsTo(to, subset),
-    IsHeapObject(subset),
-    LoadSlice(to, base, st, ed, step),
-    (st != "none" ; ed != "none" ; step != "none").
-
-IsHeapSubset(newSubset, set) :-
-    ActualParam(fromIndex, invo, from),
-    VarPointsTo(from, subset),
-    IsHeapObject(subset),
-    IsHeapSubset(subset, set),
-    ActualReturn(toIndex, invo, to),
-    VarPointsTo(to, newSubset),
-    IsHeapObject(newSubset),
-    CallGraphEdge(invo, meth),
-    ParamToRetSubsetTransferMethod(toIndex, fromIndex, meth).
-    
-// TaintedValue(value) :-
-//     MethodReturnTainted(meth),
+// IsHeapSubset(subset, set) :-
+//     ActualParam(fromIndex, invo, from),
+//     VarPointsTo(from, set),
+//     IsHeapObject(set),
+//     ActualReturn(toIndex, invo, to),
+//     VarPointsTo(to, subset),
+//     IsHeapObject(subset),
 //     CallGraphEdge(invo, meth),
-//     AssignReturnValue(invo, value).
+//     ParamToRetSubsetMethod(toIndex, fromIndex, meth).
 
-// TaintedValue(toValue) :-
-//     AssignReturnValue(invo, toValue),
-//     CallGraphEdge(invo, meth),
-//     MethodReturnTaintedByIndex(meth, index),
-//     ActualParam(index, invo, var),
-//     VarPointsTo(var, value),
-//     TaintedValue(value).
+// IsHeapSubset(subset, set) :-
+//     IsHeapSubset(subset, middleset),
+//     IsHeapSubset(middleset, set).
 
-// TaintedValue(value) :-
-//     VarPointsTo(var, value),
-//     TaintedVar(var).
+ValueFlowTo(toHeap, fromHeap) :-
+    ActualParam(fromIndex, invo, from),
+    VarPointsTo(from, fromHeap),
+    IsHeapObject(fromHeap),
+    ActualReturn(toIndex, invo, to),
+    VarPointsTo(to, toHeap),
+    IsHeapObject(toHeap),
+    CallGraphEdge(invo, meth),
+    (ParamToRetEquivMethod(toIndex, fromIndex, meth); ParamToRetSubsetMethod(toIndex, fromIndex, meth)).
+
+
+ValueFlowTo(toHeap, baseHeap) :-
+    VarPointsTo(base, baseHeap),
+    IsHeapObject(baseHeap),
+    VarPointsTo(to, toHeap),
+    IsHeapObject(toHeap),
+    LoadSlice(to, base, _, _, _).
+
+
+ValueFlowTo(toHeap, fromHeap) :-
+    ValueFlowTo(toHeap, midHeap),
+    ValueFlowTo(midHeap, fromHeap).
 
 TaintedVar(var) :-
     VarPointsTo(var, value),
     IsTaintObject(value).
 
-IsTaintObject(value),
-VarPointsTo(var, value),
-TaintLabel(value, fromValue) :-
-    value = ValueIdMacro(invo, meth),
-    ActualReturn(_, invo, var),
-    CallGraphEdge(invo, meth),
-    TaintSourceMethod(meth, idx),
-    ActualParam(idx, invo, from),
-    VarPointsTo(from, fromValue).
+// IsTaintObject(value),
+// VarPointsTo(from, value),
+// TaintLabel(value, fromValue, taintType) :-
+//     value = ValueIdMacro(fromValue, taintType),
+//     CallGraphEdge(invo, meth),
+//     TaintSourceMethod(meth, idx, taintType),
+//     ActualParam(idx, invo, from),
+//     VarPointsTo(from, fromValue),
+//     IsHeapObject(fromValue).
 
-IsTaintedFrom(from, to, meth):-
+// IsTaintObject(value),
+// VarPointsTo(from, value),
+// TaintLabel(value, fromValue, taintType) :-
+//     value = ValueIdMacro(fromValue, taintType),
+//     CallGraphEdge(invo, meth),
+//     TaintSourceRetMethod(meth, idx, taintType),
+//     ActualReturn(idx, invo, from),
+//     VarPointsTo(from, fromValue),
+//     IsHeapObject(fromValue).
+
+IsTaintObject(value),
+VarPointsTo(to, value),
+TaintLabel(value, fromValue, taintType) :-
+    value = ValueIdMacro(fromValue, taintType),
+    CallGraphEdge(invo, meth),
+    TaintSourceMethod(meth, toIdx, fromIdx, taintType),
+    ActualParam(fromIdx, invo, from),
+    ActualReturn(toIdx, invo, to),
+    VarPointsTo(from, fromValue),
+    IsHeapObject(fromValue).
+
+TaintFrom(to, from):-
     ActualParam(toIndex, invo, to),
     ActualParam(fromIndex, invo, from),
     CallGraphEdge(invo, meth),
     ParamToParamTaintTransferMethod(toIndex, fromIndex, meth).
 
-IsTaintedFrom(from, to, meth) :-
+TaintFrom(to, from) :-
     ActualParam(fromIndex, invo, from),
     ActualReturn(toIndex, invo, to),
     CallGraphEdge(invo, meth),
     ParamToRetTaintTransferMethod(toIndex, fromIndex, meth).
 
+TaintFrom(to, from) :-
+    VarPointsTo(to, toHeap),
+    VarPointsTo(from, fromHeap),
+    ValueFlowTo(toHeap, fromHeap).
+
+
+// TaintFrom(to, from):-
+//     ActualParam(toIndex, invo, to),
+//     ActualParam(fromIndex, invo, from),
+//     CallGraphEdge(invo, meth),
+//     ParamToParamSetTaintTransferMethod(toIndex, fromIndex, meth).
+
+// TaintFrom(to, from) :-
+//     ActualParam(fromIndex, invo, from),
+//     ActualReturn(toIndex, invo, to),
+//     CallGraphEdge(invo, meth),
+//     ParamToRetSetTaintTransferMethod(toIndex, fromIndex, meth).
+
 IsTaintObject(newValue),
-VarPointsTo(var, newValue),
-TaintLabel(newValue, label)  :-
-    newValue = ValueIdMacro(value, meth),
-    IsTaintedFrom(from, to, meth),
+VarPointsTo(var, value),
+TaintLabel(newValue, srcValue, taintType)  :-
+    newValue = ValueIdMacro(oldValue, taintType),
+    TaintFrom(to, from),
     VarPointsTo(from, value),
     IsTaintObject(value),
-    TaintLabel(value, label),
+    TaintLabel(value, srcValue, taintType),
     VarPointsTo(to, oldValue),
-    Alloc(var, oldValue).
+    Alloc(var, oldValue),
+    IsHeapObject(oldValue).
 
 Leak(value, invo, meth) :-
-    SinkMethod(meth, idx),
+    SinkMethod(meth, idx, "train"),
     CallGraphEdge(invo, meth),
     ActualParam(idx, invo, var),
     VarPointsTo(var, value),
     IsTaintObject(value),
-    TaintLabel(value, label),
-    VarPointsTo(var, heapValue),
-    IsHeapObject(heapValue),
-    IsHeapSubset(heapValue, label).
+    TaintLabel(value, srcValue1, "rowset"),
+    SinkMethod(meth2, idx2, "test"),
+    CallGraphEdge(invo2, meth2),
+    ActualParam(idx2, invo2, var2),
+    VarPointsTo(var2, value2),
+    ValueFlowTo(value2, srcValue1).
 
-// TaintedVar(to) :-
-//     VarPointsTo(to, value),
-//     VarPointsTo(from, value),
-//     VarPointsTo(from, taintValue),
-//     IsTaintObject(taintValue).
-
-
-.output IsHeapSubset
+.output ValueFlowTo
+.output TaintedVar
 .output VarPointsTo
 .output Leak
-// .output TaintedValue
-
-// .decl Test(meth:Invocation, value:Value)
-
-// Test(invo, value) :-
-//     // AssignReturnValue(invo, value),
-//     CallGraphEdge(invo, meth),
-//     MethodReturnTaintedByIndex(meth, index),
-//     ActualParam(index, invo, var),
-//     VarPointsTo(var, value),
-//     TaintedValue(value).
-
-// .output Test
