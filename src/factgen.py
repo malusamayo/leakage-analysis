@@ -17,6 +17,7 @@ class FactManager(object):
             "AssignIntConstant": [],
             "AssignFloatConstant": [],
             "AssignBinOp": [],
+            "AssignUnaryOp": [],
             "LoadField": [],
             "StoreField": [],
             "LoadIndex": [],
@@ -28,7 +29,7 @@ class FactManager(object):
             "ActualParam": [],
             "ActualKeyParam": [], 
             "FormalParam": [],
-            "FormalKeyParam": [],
+            # "FormalKeyParam": [],
             "ActualReturn": [],
             "FormalReturn": [],
             "MethodUpdate": [],
@@ -94,6 +95,11 @@ class FactGenerator(ast.NodeVisitor):
     def visit_ImportFrom(self,node):
         return ast.NodeTransformer.generic_visit(self, node)
 
+    def visit_FunctionDef(self, node, inClass=False):
+        for i, arg in enumerate(node.args.args):
+            self.FManager.add_fact("FormalParam", (i+1, node.name, arg.arg))
+        return ast.NodeTransformer.generic_visit(self, node)
+
     def handle_assign_value(self, target, value):
         assert(type(target) == ast.Name)
         target_name = target.id
@@ -113,6 +119,10 @@ class FactGenerator(ast.NodeVisitor):
             elif type(value.value) == str:
                 self.FManager.add_fact("AssignStrConstant", (target_name, value.value))
         elif type(value) in [ast.List, ast.ListComp]:
+            if type(value) == ast.List and len(value.elts) <= 50 and ast.Name in [type(x) for x in value.elts]:
+                for i, x in enumerate(value.elts):
+                    if type(x) == ast.Name:
+                        self.FManager.add_fact("StoreIndex", (target_name, i, x.id))
             new_iter = self.FManager.get_new_list()
             self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
             self.FManager.add_fact("AssignVar", (target_name, new_iter))
@@ -141,6 +151,9 @@ class FactGenerator(ast.NodeVisitor):
                 slice_ids = [x.id if x else "none" for x in [value.slice.lower, value.slice.upper, value.slice.step]]
                 self.FManager.add_fact("LoadSlice", (target_name, value.value.id, *slice_ids))
                 self.FManager.add_fact("Alloc", (target_name, self.FManager.get_new_heap())) # should be generated on the fly
+            elif type(value.slice) == ast.ExtSlice:
+                self.FManager.add_fact("LoadIndex", (target_name, value.value.id, "slice_placeholder"))
+                self.FManager.add_fact("Alloc", (target_name, self.FManager.get_new_heap())) # should be generated on the fly
         elif type(value) == ast.Attribute:
             assert type(value.value) == ast.Name
             self.FManager.add_fact("LoadField", (target_name, value.value.id, value.attr))
@@ -148,8 +161,14 @@ class FactGenerator(ast.NodeVisitor):
             assert type(value.left) == ast.Name
             assert type(value.right) == ast.Name
             self.FManager.add_fact("AssignBinOp", (target_name, value.left.id, value.op.__class__.__name__, value.right.id))
+        elif type(value) == ast.UnaryOp:
+            assert type(value.operand) in [ast.Name, ast.Constant]
+            if type(value.operand) == ast.Name:
+                self.FManager.add_fact("AssignUnaryOp", (target_name, value.op.__class__.__name__, value.operand.id))
+            elif type(value.operand) == ast.Constant:
+                self.FManager.add_fact("AssignUnaryOp", (target_name, value.op.__class__.__name__, value.operand.value))
         elif type(value) == ast.Compare:
-            self.FManager.add_fact("AssignBool", (target_name, "boolean_placeholder"))
+            self.FManager.add_fact("AssignBool", (target_name, "boolean_placeholder")) # maybe vectors!!
         else:
             print("Unkown source type! " + str(type(value)))
             assert 0
@@ -165,12 +184,14 @@ class FactGenerator(ast.NodeVisitor):
                 self.FManager.add_fact("StoreField", (target.value.id, target.attr, node.value.id))
             elif type(target) == ast.Subscript:
                 assert type(target.value) == ast.Name
-                assert type(target.slice) == ast.Index # Slice not handled yet
-                assert type(target.slice.value) == ast.Name
                 assert type(node.value) == ast.Name
-                self.FManager.add_fact("StoreIndex", (target.value.id, target.slice.value.id, node.value.id))
+                if type(target.slice) == ast.ExtSlice:
+                    self.FManager.add_fact("StoreIndex", (target.value.id, "slice_placeholder", node.value.id))
+                else:
+                    assert type(target.slice) == ast.Index # Slice not handled yet
+                    assert type(target.slice.value) == ast.Name
+                    self.FManager.add_fact("StoreIndex", (target.value.id, target.slice.value.id, node.value.id))
             elif type(target) == ast.Tuple:
-                
                 assert type(node.value) == ast.Call
                 cur_invo = self.visit_Call(node.value)
                 for i, t in enumerate(target.elts):

@@ -58,6 +58,15 @@ class CodeTransformer(ast.NodeTransformer):
         node.value = newValue
         return nodes1 + [node]
 
+    def visit_Delete(self, node):
+        nodes = []
+        new_vars = []
+        for t in node.targets:
+            nodes1, new_v = self.visitNameOnly(t)
+            new_vars.append(new_v)
+            nodes += nodes1
+        return nodes, ast.Delete(new_vars)
+
     def visit_Expr(self, node):
         rets = self.generic_visit(node)
         if len(rets.value) == 2:
@@ -68,7 +77,7 @@ class CodeTransformer(ast.NodeTransformer):
     def handle_assign_value(self, target, value):
         assert(type(target) == ast.Name)
         nodes = []
-        if type(value) in [ast.Attribute, ast.Name, ast.Call, ast.Constant, ast.Subscript, ast.List, ast.Dict, ast.BinOp, ast.ListComp]:
+        if type(value) in [ast.Attribute, ast.Name, ast.Call, ast.Constant, ast.Subscript, ast.List, ast.Dict, ast.BinOp, ast.UnaryOp, ast.ListComp]:
             nodes, new_node = self.visit(value)
             nodes1, target = self.visit_Name(target, assigned = True)
             nodes = nodes + nodes1 + [ast.Assign([target], new_node)]
@@ -133,6 +142,8 @@ class CodeTransformer(ast.NodeTransformer):
             nodes2, slice = self.visit_Slice(node.slice)
         elif type(node.slice) == ast.Index:
             nodes2, slice = self.visit_Index(node.slice)
+        elif type(node.slice) == ast.ExtSlice:
+            nodes2, slice = self.visit_ExtSlice(node.slice)
         else:
             assert 0
         return nodes + nodes1 + nodes2, ast.Subscript(new_v, slice)
@@ -153,11 +164,24 @@ class CodeTransformer(ast.NodeTransformer):
         nodes3, stp = visitMaybe(self, node.step)
         return nodes + nodes1 + nodes2 + nodes3, ast.Slice(l, h, stp)
 
+    def visit_ExtSlice(self, node):
+        nodes = []
+        new_dims = []
+        for dim in node.dims:
+            nodes1, dim1 = self.visit(dim)
+            nodes += nodes1
+            new_dims.append(dim1)
+        return nodes, ast.ExtSlice(new_dims)
+
     def visit_BinOp(self, node):
         nodes = []
         nodes1, l = self.visitNameOnly(node.left)
         nodes2, r = self.visitNameOnly(node.right)
         return nodes + nodes1 + nodes2, ast.BinOp(l, node.op, r)
+
+    def visit_UnaryOp(self, node):
+        nodes, oper = self.visitNameAndConsOnly(node.operand)
+        return nodes, ast.UnaryOp(node.op, oper)
 
     def visit_Compare(self, node):
         nodes = []
