@@ -32,7 +32,7 @@ class FactManager(object):
             # "FormalKeyParam": [],
             "ActualReturn": [],
             "FormalReturn": [],
-            "MethodUpdate": [],
+            # "MethodUpdate": [],
             "Alloc": []
         }
 

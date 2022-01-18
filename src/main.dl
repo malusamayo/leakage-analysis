@@ -87,32 +87,46 @@ TaintSourceMethod("TfidfTransformer.fit_transform", 0, 1, "rowset").
 TaintSourceMethod("DataFrameMapper.fit_transform", 0, 1, "rowset"). // only when the mapper is tainted!!! [TODO]
 TaintSourceMethod("StandardScaler.fit_transform", 0, 1, "rowset"). 
 
-TrainingData("LogisticRegression.fit", 0, 1).
-TrainingData("GaussianNB.fit", 0, 1).
-TrainingData("Unknown.fit", 0, 1).
-TrainingData("Model.fit", 0, 1).
-TrainingData("Sequential.fit", 0, 1).
+// TrainingData("LogisticRegression.fit", 0, 1).
+// TrainingData("GaussianNB.fit", 0, 1).
+// TrainingData("Unknown.fit", 0, 1).
+// TrainingData("Model.fit", 0, 1).
+// TrainingData("Sequential.fit", 0, 1).
+TrainingData(meth, 0, 1) :-
+    CallGraphEdge(_, meth),
+    match(".*[.]fit", meth).
 
-TestData("LogisticRegression.predict", 0, 1).
-TestData("GaussianNB.predict", 0, 1).
-TestData("Unknown.predict_proba", 0, 1).
-TestData("Unknown.score", 0, 1).
-TestData("Model.evaluate", 0, 1).
-TestData("Sequential.evaluate", 0, 1).
 
+// TestData("LogisticRegression.predict", 0, 1).
+// TestData("GaussianNB.predict", 0, 1).
+// TestData("Unknown.predict_proba", 0, 1).
+// TestData("Unknown.score", 0, 1).
+// TestData("Model.evaluate", 0, 1).
+// TestData("Sequential.evaluate", 0, 1).
+
+TestData(meth, 0, 1) :-
+    CallGraphEdge(_, meth),
+    match(".*[.](predict|score|evaluate|predict_proba)", meth).
 
 ParamToRetTaintTransferMethod(0, 1, "pandas.Series.fillna").
 ParamToParamTaintTransferMethod(0, 1, "pandas.Series.fillna").
 
 
-ParamToRetSubsetMethod(0, 1, "train_test_split").
-ParamToRetSubsetMethod(1, 1, "train_test_split").
-ParamToRetSubsetMethod(2, 2, "train_test_split").
-ParamToRetSubsetMethod(3, 2, "train_test_split").
-ParamToRetSubsetMethod(0, 1, "Unknown.train_test_split"). //regex matching??? [TODO]
-ParamToRetSubsetMethod(1, 1, "Unknown.train_test_split").
-ParamToRetSubsetMethod(2, 2, "Unknown.train_test_split").
-ParamToRetSubsetMethod(3, 2, "Unknown.train_test_split").
+// ParamToRetSubsetMethod(0, 1, "train_test_split").
+// ParamToRetSubsetMethod(1, 1, "train_test_split").
+// ParamToRetSubsetMethod(2, 2, "train_test_split").
+// ParamToRetSubsetMethod(3, 2, "train_test_split").
+// ParamToRetSubsetMethod(0, 1, "Unknown.train_test_split"). //regex matching??? [TODO]
+// ParamToRetSubsetMethod(1, 1, "Unknown.train_test_split").
+// ParamToRetSubsetMethod(2, 2, "Unknown.train_test_split").
+// ParamToRetSubsetMethod(3, 2, "Unknown.train_test_split").
+
+ParamToRetSubsetMethod(0, 1, meth),
+ParamToRetSubsetMethod(1, 1, meth),
+ParamToRetSubsetMethod(2, 2, meth),
+ParamToRetSubsetMethod(3, 2, meth) :-
+    CallGraphEdge(_, meth),
+    match(".*train_test_split", meth).
 
 ParamToRetEquivMethod(0, 0, "pandas.Series.fillna").
 ParamToRetEquivMethod(0, 0, "pandas.Series.drop").
@@ -122,8 +136,12 @@ ParamToRetEquivMethod(0, 1, "pandas.DataFrame").
 ParamToRetEquivMethod(0, 1, "pandas.concat").
 ParamToRetEquivMethod(0, 1, "numpy.array").
 ParamToRetEquivMethod(0, 1, "TfidfTransformer.transform").
-ParamToRetEquivMethod(0, 1, "DataFrameMapper.fit_transform").
-ParamToRetEquivMethod(0, 1, "StandardScaler.fit_transform").
+// ParamToRetEquivMethod(0, 1, "DataFrameMapper.fit_transform").
+// ParamToRetEquivMethod(0, 1, "StandardScaler.fit_transform").
+
+ParamToRetEquivMethod(0, 1, meth) :-
+    CallGraphEdge(_, meth),
+    match(".*[.](transform|fit_transform)", meth).
 
 // -- analysis --
 
@@ -134,7 +152,7 @@ ParamToRetEquivMethod(0, 1, "StandardScaler.fit_transform").
 
 // .decl TaintedValue(value:Value)
 .decl TaintedVar(var:Var)
-.decl TaintSource(taintValue:Value, srcValue:Value)
+.decl TaintSource(taintValue:Value, srcValue:Value, taintType:symbol)
 .decl TaintFrom(to:Var, from:Var)
 
 .decl ValueFlowTo(to:Value, from:Value)
@@ -233,7 +251,7 @@ TaintedVar(var) :-
 
 IsTaintObject(value),
 VarPointsTo(to, value),
-TaintSource(value, fromValue) :-
+TaintSource(value, fromValue, taintType) :-
     value = ValueIdMacro(fromValue, taintType),
     CallGraphEdge(invo, meth),
     TaintSourceMethod(meth, toIdx, fromIdx, taintType),
@@ -261,12 +279,12 @@ TaintFrom(to, from) :-
 
 IsTaintObject(newValue),
 VarPointsTo(var, value),
-TaintSource(newValue, srcValue)  :-
+TaintSource(newValue, srcValue, taintType)  :-
     newValue = ValueIdMacro(oldValue, taintType),
     TaintFrom(to, from),
     VarPointsTo(from, value),
     IsTaintObject(value),
-    TaintSource(value, srcValue),
+    TaintSource(value, srcValue, taintType),
     VarPointsTo(to, oldValue),
     Alloc(var, oldValue),
     IsHeapObject(oldValue).
@@ -298,7 +316,7 @@ TestDataValue(modelValue, value) :-
 Leak(taintValue, meth) :-
     TrainingDataTaintValue(modelValue, taintValue, meth),
     TestDataValue(modelValue, value),
-    TaintSource(taintValue, srcValue),
+    TaintSource(taintValue, srcValue, "rowset"),
     ValueFlowTo(value, srcValue).
 
 .output ValueFlowTo
