@@ -163,7 +163,7 @@ train, test, spamLabelTrain, spamLabelTest = train_test_split(weightedFreqOfWord
 
 
 # In[ ]:
-trainSinkPoint(train)
-testSinkPoint(test)
+model.fit(train)
+model.score(test)
 
 
