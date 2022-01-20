@@ -83,6 +83,16 @@ class FactGenerator(ast.NodeVisitor):
         super().__init__()
         self.FManager = FactManager()
         self.load_type_map(json_path)
+        self.meth_map = {
+            ast.Set: self.FManager.get_new_set,
+            ast.Tuple: self.FManager.get_new_tuple,
+            ast.List: self.FManager.get_new_list,
+            ast.Dict: self.FManager.get_new_dict,
+            ast.SetComp: self.FManager.get_new_set,
+            ast.GeneratorExp: self.FManager.get_new_var,
+            ast.ListComp: self.FManager.get_new_list,
+            ast.DictComp: self.FManager.get_new_dict,
+        }
 
     
     def load_type_map(self, json_path):
@@ -118,24 +128,31 @@ class FactGenerator(ast.NodeVisitor):
                 self.FManager.add_fact("AssignFloatConstant", (target_name, value.value))
             elif type(value.value) == str:
                 self.FManager.add_fact("AssignStrConstant", (target_name, value.value))
-        elif type(value) in [ast.List, ast.ListComp]:
-            if type(value) == ast.List and len(value.elts) <= 50 and ast.Name in [type(x) for x in value.elts]:
+        # other literals
+        elif type(value) in [ast.List, ast.Tuple, ast.Set]:
+            if len(value.elts) <= 50 and ast.Name in [type(x) for x in value.elts]:
                 for i, x in enumerate(value.elts):
                     if type(x) == ast.Name:
                         self.FManager.add_fact("StoreIndex", (target_name, i, x.id))
-            new_iter = self.FManager.get_new_list()
+                    else:
+                        assert type(x) ==  ast.Constant
+            new_iter = self.meth_map[type(value)]()
             self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
             self.FManager.add_fact("AssignVar", (target_name, new_iter))
-        elif type(value) in [ast.Set, ast.SetComp]:
-            new_iter = self.FManager.get_new_set()
+        elif type(value) == ast.Dict:
+            if len(value.values) <= 50 and ast.Name in [type(x) for x in value.values]:
+                for k, v in zip(value.keys, value.values):
+                    if type(v) == ast.Name:
+                        k_literal = k.id if type(k) == ast.Name else k.value
+                        self.FManager.add_fact("StoreIndex", (target_name, k_literal, v.id))
+                    else:
+                        assert type(v) ==  ast.Constant
+            new_iter = self.meth_map[type(value)]()
             self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
             self.FManager.add_fact("AssignVar", (target_name, new_iter))
-        elif type(value) in [ast.Dict, ast.DictComp]:
-            new_iter = self.FManager.get_new_dict()
-            self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
-            self.FManager.add_fact("AssignVar", (target_name, new_iter))
-        elif type(value) == ast.Tuple:
-            new_iter = self.FManager.get_new_tuple()
+        # comprehensions [TODO]
+        elif type(value) in [ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp]:
+            new_iter = self.meth_map[type(value)]()
             self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
             self.FManager.add_fact("AssignVar", (target_name, new_iter))
         elif type(value) == ast.Lambda:
@@ -168,13 +185,20 @@ class FactGenerator(ast.NodeVisitor):
             elif type(value.operand) == ast.Constant:
                 self.FManager.add_fact("AssignUnaryOp", (target_name, value.op.__class__.__name__, value.operand.value))
         elif type(value) == ast.Compare:
-            self.FManager.add_fact("AssignBool", (target_name, "boolean_placeholder")) # maybe vectors!!
+            self.FManager.add_fact("AssignBool", (target_name, "boolean_placeholder")) # maybe vectors!! [TODO]
+        elif type(value) == ast.Starred:
+            assert type(value.value) == ast.Name
+            self.FManager.add_fact("LoadField", (target_name, value.value.id, "")) # better modeling? [TODO]
+        elif type(value) == ast.IfExp:
+            assert type(value.body) == ast.Name
+            assert type(value.orelse) == ast.Name
+            self.FManager.add_fact("AssignVar", (target_name, value.body.id))
+            self.FManager.add_fact("AssignVar", (target_name, value.orelse.id))
         else:
             print("Unkown source type! " + str(type(value)))
             assert 0
 
     def visit_Assign(self, node):
-        # print('Node type: Assign and fields: ', node.targets)
         for target in node.targets:
             if type(target) == ast.Name:
                 self.handle_assign_value(target, node.value)
@@ -215,7 +239,6 @@ class FactGenerator(ast.NodeVisitor):
             print("Impossible!")
         self.visit_arguments(node.args, cur_invo=cur_invo)
         self.visit_keywords(node.keywords, cur_invo=cur_invo)
-        # print(node.func, node.args, node.keywords)
         return cur_invo
 
 
