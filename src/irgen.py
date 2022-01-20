@@ -191,6 +191,15 @@ class CodeTransformer(ast.NodeTransformer):
         nodes1, l = self.visitNameOnly(node.left)
         nodes2, r = self.visitNameOnly(node.right)
         return nodes + nodes1 + nodes2, ast.BinOp(l, node.op, r)
+    
+    def visit_BoolOp(self, node):
+        nodes = []
+        new_vs = []
+        for v in node.values:
+            nodes1, new_v = self.visitNameOnly(v)
+            nodes += nodes1
+            new_vs.append(new_v)
+        return nodes, ast.BoolOp(node.op, new_vs)
 
     def visit_UnaryOp(self, node):
         nodes, oper = self.visitNameAndConsOnly(node.operand)
@@ -318,10 +327,13 @@ class CodeTransformer(ast.NodeTransformer):
             new_values.append(new_v)
         return nodes, ast.Dict(new_keys, new_values)
 
-    # keep exprs below unchanged (for now)
     def visit_Lambda(self, node):
-        return [], node
+        nodes, ret = self.visitNameOnly(node.body)
+        nodes.append(ast.Return(ret))
+        func_name = self.FManager.get_new_func()
+        return [ast.FunctionDef(func_name, node.args, nodes, [])], ast.Name(func_name)
 
+    # keep exprs below unchanged (for now)
     def visit_ListComp(self, node):
         return [], node
 

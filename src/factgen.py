@@ -8,6 +8,7 @@ class FactManager(object):
     def __init__(self) -> None:
         self.invo_num = 0 
         self.var_num = 0
+        self.func_num = 0
         self.heap_num = 0
         self.datalog_facts = {
             "AssignVar": [],
@@ -51,6 +52,11 @@ class FactManager(object):
         old_var = self.var_num
         self.var_num += 1
         return "_var" + str(old_var)
+    
+    def get_new_func(self):
+        old_func = self.func_num
+        self.func_num += 1
+        return "_func" + str(old_func)
 
     def get_new_heap(self):
         old_heap = self.heap_num
@@ -185,13 +191,23 @@ class FactGenerator(ast.NodeVisitor):
             elif type(value.operand) == ast.Constant:
                 self.FManager.add_fact("AssignUnaryOp", (target_name, value.op.__class__.__name__, value.operand.value))
         elif type(value) == ast.Compare:
-            self.FManager.add_fact("AssignBool", (target_name, "boolean_placeholder")) # maybe vectors!! [TODO]
+            assert type(value.left) == ast.Name
+            self.FManager.add_fact("AssignVar", (target_name, value.left.id))
+            for com in value.comparators:
+                assert type(com) == ast.Name
+                self.FManager.add_fact("AssignVar", (target_name, com.id)) # maybe vectors!! [TODO]
+        elif type(value) == ast.BoolOp:
+            for v in value.values:
+                assert type(v) == ast.Name
+                self.FManager.add_fact("AssignVar", (target_name, v.id))
         elif type(value) == ast.Starred:
             assert type(value.value) == ast.Name
             self.FManager.add_fact("LoadField", (target_name, value.value.id, "")) # better modeling? [TODO]
         elif type(value) == ast.IfExp:
+            assert type(value.test) == ast.Name
             assert type(value.body) == ast.Name
             assert type(value.orelse) == ast.Name
+            self.FManager.add_fact("AssignVar", (target_name, value.test.id))
             self.FManager.add_fact("AssignVar", (target_name, value.body.id))
             self.FManager.add_fact("AssignVar", (target_name, value.orelse.id))
         else:
@@ -232,7 +248,12 @@ class FactGenerator(ast.NodeVisitor):
     def visit_Call(self, node):
         cur_invo = self.FManager.get_new_invo()
         if type(node.func) == ast.Attribute:
-            self.visit_Attribute(node.func, cur_invo=cur_invo)
+            hasInnerCall = self.visit_Attribute(node.func, cur_invo=cur_invo)
+            if hasInnerCall:
+                new_invo = self.FManager.get_new_invo()
+                assert type(node.args[0]) == ast.Name
+                self.FManager.add_fact("CallGraphEdge", (new_invo, node.args[0].id))
+                self.FManager.add_fact("ActualParam", (1, new_invo, node.func.value.id))
         elif type(node.func) == ast.Name:
             self.FManager.add_fact("CallGraphEdge", (cur_invo, node.func.id))
         else:
@@ -250,6 +271,8 @@ class FactGenerator(ast.NodeVisitor):
             if value_type[0] == "var":
                 self.FManager.add_fact("ActualParam", (0, cur_invo, node.value.id))
             self.FManager.add_fact("CallGraphEdge", (cur_invo, method_sig))
+            if method_sig in ["pandas.Series.map", "pandas.Series.apply", "pandas.DataFrame.apply", "pandas.DataFrame.applymap"]:
+                return True
 
     def visit_arguments(self, args, cur_invo=None):
         if type(args) == ast.arguments:
