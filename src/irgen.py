@@ -26,6 +26,10 @@ class CodeTransformer(ast.NodeTransformer):
         # else:
         return rets
 
+    def visit_ClassDef(self, node):
+        node.body = self.visit_Body(node.body)
+        return node
+
     def visit_Body(self, body):
         if isinstance(body, list):
             new_values = []
@@ -51,7 +55,14 @@ class CodeTransformer(ast.NodeTransformer):
         nodes, new_test = self.visitNameOnly(node.test)
         node.test = new_test
         node.body = self.visit_Body(node.body)
+        node.orelse = self.visit_Body(node.orelse)
         return nodes, node
+
+    def visit_IfExp(self, node):
+        nodes, new_test = self.visitNameOnly(node.test)
+        nodes1, new_body = self.visitNameOnly(node.body)
+        nodes2, new_orelse = self.visitNameOnly(node.orelse)
+        return nodes + nodes1 + nodes2, ast.IfExp(new_test, new_body, new_orelse)
 
     def visit_Return(self, node):
         nodes1, newValue = self.visitNameOnly(node.value)
@@ -77,7 +88,7 @@ class CodeTransformer(ast.NodeTransformer):
     def handle_assign_value(self, target, value):
         assert(type(target) == ast.Name)
         nodes = []
-        if type(value) in [ast.Attribute, ast.Name, ast.Call, ast.Constant, ast.Subscript, ast.List, ast.Dict, ast.BinOp, ast.UnaryOp, ast.ListComp]:
+        if type(value) in [ast.Attribute, ast.Name, ast.Call, ast.Constant, ast.Subscript, ast.List, ast.Dict, ast.BinOp, ast.UnaryOp, ast.Compare, ast.ListComp]:
             nodes, new_node = self.visit(value)
             nodes1, target = self.visit_Name(target, assigned = True)
             nodes = nodes + nodes1 + [ast.Assign([target], new_node)]
@@ -127,9 +138,11 @@ class CodeTransformer(ast.NodeTransformer):
             assert node.target.id == nodes[-1].targets[0].id
             nodes[-1] = ast.AnnAssign(node.target, node.annotation, nodes[-1].value, simple = node.simple)
         return nodes
+    
+    def visit_AugAssign(self, node):
+        return self.visit_Assign(ast.Assign([node.target], ast.BinOp(node.target, node.op, node.value)))
 
     def visit_Assign(self,node):
-        # print('Node type: Assign and fields: ', node.targets)
         nodes = []
         for target in node.targets:
             nodes += self.handle_single_assign(target, node.value)
@@ -194,12 +207,15 @@ class CodeTransformer(ast.NodeTransformer):
             new_coms.append(new_com)
         return nodes, ast.Compare(l, node.ops, new_coms)
 
+    def visit_Starred(self, node):
+        nodes, new_v = self.visitNameOnly(node.value)
+        return nodes, ast.Starred(new_v)
+
     def visit_Call(self, node):
         nodes = []
         nodes1, base = self.visit(node.func)
         nodes2, args = self.visit_arguments(node.args)
         nodes3, kws = self.visit_keywords(node.keywords)
-        # print(node.func, node.args, node.keywords)
         return nodes + nodes1 + nodes2 + nodes3, ast.Call(base, args, kws)
 
 
@@ -302,7 +318,7 @@ class CodeTransformer(ast.NodeTransformer):
             new_values.append(new_v)
         return nodes, ast.Dict(new_keys, new_values)
 
-    # keep exprs below unchanged
+    # keep exprs below unchanged (for now)
     def visit_Lambda(self, node):
         return [], node
 
@@ -313,4 +329,7 @@ class CodeTransformer(ast.NodeTransformer):
         return [], node
 
     def visit_DictComp(self, node):
+        return [], node
+
+    def visit_GeneratorExp(self, node):
         return [], node
