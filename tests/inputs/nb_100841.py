@@ -164,6 +164,6 @@ train, test, spamLabelTrain, spamLabelTest = train_test_split(weightedFreqOfWord
 
 # In[ ]:
 model.fit(train)
-model.score(test)
+model.predict(test)
 
 
