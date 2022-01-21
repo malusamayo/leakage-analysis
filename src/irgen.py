@@ -49,6 +49,14 @@ class CodeTransformer(ast.NodeTransformer):
         nodes, new_iter = self.visitNameOnly(node.iter)
         node.iter = new_iter
         node.body = self.visit_Body(node.body)
+        node.orelse = self.visit_Body(node.orelse)
+        return nodes, node
+
+    def visit_While(self, node):
+        nodes, new_test = self.visitNameOnly(node.test)
+        node.iter = new_test
+        node.body = self.visit_Body(node.body)
+        node.orelse = self.visit_Body(node.orelse)
         return nodes, node
 
     def visit_If(self, node):
@@ -65,7 +73,12 @@ class CodeTransformer(ast.NodeTransformer):
         return nodes + nodes1 + nodes2, ast.IfExp(new_test, new_body, new_orelse)
 
     def visit_Return(self, node):
-        nodes1, newValue = self.visitNameOnly(node.value)
+        nodes1, newValue = self.visitNameAndTupleOnly(node.value)
+        node.value = newValue
+        return nodes1 + [node]
+    
+    def visit_Yield(self, node):
+        nodes1, newValue = self.visitNameAndTupleOnly(node.value)
         node.value = newValue
         return nodes1 + [node]
 
@@ -88,15 +101,14 @@ class CodeTransformer(ast.NodeTransformer):
     def handle_assign_value(self, target, value):
         assert(type(target) == ast.Name)
         nodes = []
-        if type(value) in [ast.Attribute, ast.Name, ast.Call, ast.Constant, ast.Subscript, ast.List, ast.Dict, ast.BinOp, ast.UnaryOp, ast.Compare, ast.ListComp]:
+        if type(value) in [ast.Attribute, ast.Name, ast.Call, ast.Constant, ast.Subscript, ast.List, ast.Tuple, ast.Set, ast.Dict, ast.BinOp, ast.UnaryOp, ast.Compare, ast.ListComp]:
             nodes, new_node = self.visit(value)
             nodes1, target = self.visit_Name(target, assigned = True)
             nodes = nodes + nodes1 + [ast.Assign([target], new_node)]
         elif type(value) == ast.Index:
             nodes += self.handle_assign_value(target, value.value)
         else:
-            print("Unkown source type! " + str(type(value)))
-            assert 0
+            assert 0, "Unkown source type! " + str(type(value))
         return nodes
 
     def handle_single_assign(self, target, value):
@@ -128,8 +140,7 @@ class CodeTransformer(ast.NodeTransformer):
             else:
                 assert 0
         else:
-            print("Unkown target type! " + str(type(target)))
-            assert 0
+            assert 0, "Unkown target type! " + str(type(target))
         return nodes
 
     def visit_AnnAssign(self, node):
@@ -264,6 +275,13 @@ class CodeTransformer(ast.NodeTransformer):
     def visitNameAndConsOnly(self, node):
         nodes, newNode = self.visit(node)
         if type(newNode) not in [ast.Name, ast.Constant]:
+            new_var = ast.Name(self.FManager.get_new_var())
+            return nodes + [ast.Assign([new_var], newNode)], new_var
+        return nodes, newNode
+    
+    def visitNameAndTupleOnly(self, node):
+        nodes, newNode = self.visit(node)
+        if type(newNode) not in [ast.Name, ast.Tuple]:
             new_var = ast.Name(self.FManager.get_new_var())
             return nodes + [ast.Assign([new_var], newNode)], new_var
         return nodes, newNode

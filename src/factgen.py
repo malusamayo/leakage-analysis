@@ -99,7 +99,7 @@ class FactGenerator(ast.NodeVisitor):
             ast.ListComp: self.FManager.get_new_list,
             ast.DictComp: self.FManager.get_new_dict,
         }
-
+        self.scope_stack = []
     
     def load_type_map(self, json_path):
         with open(json_path) as f:
@@ -112,8 +112,49 @@ class FactGenerator(ast.NodeVisitor):
         return ast.NodeTransformer.generic_visit(self, node)
 
     def visit_FunctionDef(self, node, inClass=False):
+        self.scope_stack.append(node.name)
         for i, arg in enumerate(node.args.args):
             self.FManager.add_fact("FormalParam", (i+1, node.name, arg.arg))
+        ret = ast.NodeTransformer.generic_visit(self, node)
+        self.scope_stack.pop()
+        return ret
+    
+    def visit_For(self, node):
+        assert(type(node.iter) == ast.Name)
+
+        def visit_Iter(target, iter_id):
+            for i, x in enumerate(target.elts):
+                if type(x) == ast.Name:
+                    self.FManager.add_fact("LoadIndex", (x.id, iter_id, "index_placeholder"))
+                elif type(x) in [ast.Tuple, ast.List]:
+                    visit_Iter(x, iter_id)
+                else:
+                    assert 0
+
+        if type(node.target) == ast.Name:
+            self.FManager.add_fact("LoadIndex", (node.target.id, node.iter.id, "index_placeholder"))
+        elif type(node.target) in [ast.Tuple, ast.List]:
+            visit_Iter(node.target, node.iter.id)
+        else:
+            assert 0
+        return ast.NodeTransformer.generic_visit(self, node)
+    
+    def visit_Return(self, node, inClass=False):
+        if type(node.value) == ast.Name:
+            self.FManager.add_fact("FormalReturn", (0, self.scope_stack[-1], node.value.id))
+        elif type(node.value) == ast.Tuple:
+            for i, x in enumerate(node.value.elts):
+                assert type(x) == ast.Name
+                self.FManager.add_fact("FormalReturn", (i, self.scope_stack[-1], x.id))
+        return ast.NodeTransformer.generic_visit(self, node)
+    
+    def visit_Yield(self, node, inClass=False):
+        if type(node.value) == ast.Name:
+            self.FManager.add_fact("FormalReturn", (0, self.scope_stack[-1], node.value.id))
+        elif type(node.value) == ast.Tuple:
+            for i, x in enumerate(node.value.elts):
+                assert type(x) == ast.Name
+                self.FManager.add_fact("FormalReturn", (i, self.scope_stack[-1], x.id))
         return ast.NodeTransformer.generic_visit(self, node)
 
     def handle_assign_value(self, target, value):
@@ -254,6 +295,7 @@ class FactGenerator(ast.NodeVisitor):
                 assert type(node.args[0]) == ast.Name
                 self.FManager.add_fact("CallGraphEdge", (new_invo, node.args[0].id))
                 self.FManager.add_fact("ActualParam", (1, new_invo, node.func.value.id))
+                self.FManager.add_fact("ActualReturn", (0, new_invo, node.func.value.id))
         elif type(node.func) == ast.Name:
             self.FManager.add_fact("CallGraphEdge", (cur_invo, node.func.id))
         else:
@@ -271,7 +313,7 @@ class FactGenerator(ast.NodeVisitor):
             if value_type[0] == "var":
                 self.FManager.add_fact("ActualParam", (0, cur_invo, node.value.id))
             self.FManager.add_fact("CallGraphEdge", (cur_invo, method_sig))
-            if method_sig in ["pandas.Series.map", "pandas.Series.apply", "pandas.DataFrame.apply", "pandas.DataFrame.applymap"]:
+            if method_sig in ["pandas.Series.map", "pandas.Series.apply", "pandas.DataFrame.apply", "FrameOrSeries.apply",  "pandas.DataFrame.applymap"]:
                 return True
 
     def visit_arguments(self, args, cur_invo=None):
