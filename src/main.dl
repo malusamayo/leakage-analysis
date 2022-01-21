@@ -58,7 +58,9 @@
 
 // train/test locations
 .decl TrainingData(?method:Method, ?model_idx:number, ?data_index:number)
+.decl TrainingDataByKey(?method:Method, ?model_idx:number, ?datakw:Var)
 .decl TestData(?method:Method, ?model_idx:number, ?data_index:number)
+.decl TestDataByKey(?method:Method, ?model_idx:number, ?datakw:Var)
 
 // taint analysis input relations
 .decl ParamToRetTaintSourceMethod(?to:number, ?from:number, ?method:Method, ?taintType:symbol)
@@ -88,12 +90,38 @@
 
 ParamToParamFlow(0, 1, "pandas.Series.fillna").
 
+ParamToRetEquivFlow(0, 0, "ndarray.reshape").
+ParamToRetEquivFlow(0, 0, "pandas.Series.fillna").
+// ParamToRetEquivFlow(0, 0, "pandas.Series.drop").
+// ParamToRetEquivFlow(0, 0, "pandas.DataFrame.drop").
+ParamToRetEquivFlow(0, 1, "pandas.DataFrame").
+ParamToRetEquivFlow(0, 1, "pandas.concat").
+ParamToRetEquivFlow(0, 1, "pandas.get_dummies").
+ParamToRetEquivFlow(0, 1, "numpy.array").
+ParamToRetEquivFlow(0, 1, "sklearn.preprocessing.scale").
+ParamToRetEquivFlow(0, 0, meth) :-
+    CallGraphEdge(_, meth),
+    match(".*[.](astype)", meth).
+
+ParamToRetEquivFlow(0, 0, meth) :-
+    CallGraphEdge(_, meth),
+    match(".*[.](toarray)", meth).
+
+ParamToRetEquivFlow(0, 1, meth) :-
+    CallGraphEdge(_, meth),
+    match(".*[.](transform|fit_transform)", meth).
+
+
 ParamToRetTaintSourceMethod(0, 1, "numpy.mean", "rowset").
+ParamToRetTaintSourceMethod(0, 0, "pandas.Series.mean", "rowset").
+ParamToRetTaintSourceMethod(0, 0, "pandas.DataFrame.mean", "rowset").
+ParamToRetTaintSourceMethod(0, 0, "Unknown.mean", "rowset").
 ParamToRetTaintSourceMethod(0, 1, "CountVectorizer.fit_transform", "rowset").
 ParamToRetTaintSourceMethod(0, 1, "TfidfTransformer.transform", "rowset").
 ParamToRetTaintSourceMethod(0, 1, "TfidfTransformer.fit_transform", "rowset").
 ParamToRetTaintSourceMethod(0, 1, "TfidfVectorizer.fit_transform", "rowset").
 ParamToRetTaintSourceMethod(0, 1, "StandardScaler.fit_transform", "rowset"). 
+ParamToRetTaintSourceMethod(0, 1, "MinMaxScaler.fit_transform",  "rowset"). 
 ParamToRetTaintSourceMethod(0, 1, "sklearn.preprocessing.scale", "rowset"). 
 
 ParamToParamTaintSourceMethod(0, 1, "PCA.fit", "rowset"). 
@@ -103,17 +131,25 @@ ParamToParamTaintSourceMethod(0, 1, "SelectPercentile.fit", "rowset").
 RetTaintSourceMethod(0, "sklearn.preprocessing.Imputer", "pipeline"). // not always a problem, be conservative
 RetTaintSourceMethod(0, "sklearn.preprocessing.MinMaxScaler", "pipeline"). 
 
-ParamToRetCondTaintSourceMethod(0, 1, 4027, "DataFrameMapper.fit_transform", "rowset"). // only when the mapper is tainted!!! [TODO]
-ParamToRetCondTaintSourceMethod(0, 1, 4027, "Pipeline.fit_transform",  "rowset"). // only when the pipeline is tainted!!! [TODO]
+ParamToRetCondTaintSourceMethod(0, 1, 4027, "DataFrameMapper.fit_transform", "rowset"). 
+ParamToRetCondTaintSourceMethod(0, 1, 4027, "Pipeline.fit_transform",  "rowset").
 TaintCondition(4027, 0, "pipeline").
 
 TrainingData(meth, 0, 1) :-
     CallGraphEdge(_, meth),
-    match(".*[.]fit", meth).
+    match(".*[.](fit|fit_generator)", meth).
+
+TrainingDataByKey(meth, 0, "generator") :-
+    CallGraphEdge(_, meth),
+    match(".*[.](fit_generator)", meth).
 
 TestData(meth, 0, 1) :-
     CallGraphEdge(_, meth),
     match(".*[.](predict|score|evaluate|predict_proba)", meth).
+
+TestDataByKey(meth, 0, "x") :-
+    CallGraphEdge(_, meth),
+    match(".*[.](predict_proba)", meth).
 
 // TrainingData("LogisticRegression.fit", 0, 1).
 // TrainingData("GaussianNB.fit", 0, 1).
@@ -137,46 +173,12 @@ TestData(meth, 0, 1) :-
 // ParamKeyToRetTaintTransferMethod(0, "transformer_list", "FeatureUnion").
 // ParamToRetTaintTransferMethod(0, 1, "RandomizedSearchCV").
 
-// // ParamToRetSubsetMethod(0, 1, "train_test_split").
-// // ParamToRetSubsetMethod(1, 1, "train_test_split").
-// // ParamToRetSubsetMethod(2, 2, "train_test_split").
-// // ParamToRetSubsetMethod(3, 2, "train_test_split").
-// // ParamToRetSubsetMethod(0, 1, "Unknown.train_test_split"). //regex matching??? [TODO]
-// // ParamToRetSubsetMethod(1, 1, "Unknown.train_test_split").
-// // ParamToRetSubsetMethod(2, 2, "Unknown.train_test_split").
-// // ParamToRetSubsetMethod(3, 2, "Unknown.train_test_split").
-
 // ParamToRetSubsetMethod(0, 1, meth),
 // ParamToRetSubsetMethod(1, 1, meth),
 // ParamToRetSubsetMethod(2, 2, meth),
 // ParamToRetSubsetMethod(3, 2, meth) :-
 //     CallGraphEdge(_, meth),
 //     match(".*train_test_split", meth).
-
-// ParamToRetEquivMethod(0, 0, "pandas.Series.fillna").
-// ParamToRetEquivMethod(0, 0, "pandas.Series.drop").
-// ParamToRetEquivMethod(0, 0, "pandas.DataFrame.drop").
-// ParamToRetEquivMethod(0, 0, "tuple[Unknown, Unbound | Any | float | Unknown | ndarray | None] | Unknown | Any | csr_matrix | ndarray.toarray").
-// ParamToRetEquivMethod(0, 1, "pandas.DataFrame").
-// ParamToRetEquivMethod(0, 1, "pandas.concat").
-// ParamToRetEquivMethod(0, 1, "pandas.get_dummies").
-// ParamToRetEquivMethod(0, 1, "numpy.array").
-// ParamToRetEquivMethod(0, 1, "sklearn.preprocessing.scale").
-// // ParamToRetEquivMethod(0, 0, "Pipeline.fit").
-// // ParamToRetEquivMethod(0, 1, "TfidfTransformer.transform").
-// // ParamToRetEquivMethod(0, 1, "DataFrameMapper.fit_transform").
-// // ParamToRetEquivMethod(0, 1, "StandardScaler.fit_transform").
-// ParamToRetEquivMethod(0, 0, meth) :-
-//     CallGraphEdge(_, meth),
-//     match(".*[.](astype)", meth).
-
-// ParamToRetEquivMethod(0, 0, meth) :-
-//     CallGraphEdge(_, meth),
-//     match(".*[.](fit)", meth).
-
-// ParamToRetEquivMethod(0, 1, meth) :-
-//     CallGraphEdge(_, meth),
-//     match(".*[.](transform|fit_transform)", meth).
 
 
 
@@ -200,9 +202,10 @@ TestData(meth, 0, 1) :-
 // .decl IsHeapSubset(subset:Value, set:Value)
 
 // data flow analysis
-.decl FlowFrom(?to:Var, ?from:Var)
-.decl FlowFromEdge(?to:Var, ?from:Var)
+.decl FlowFrom(?to:Var, ?from:Var, ?tag:symbol)
+.decl FlowFromEdge(?to:Var, ?from:Var, ?tag:symbol)
 .decl ParamToParamFlow(?to:number, ?from:number, ?method:Method) // input facts
+.decl ParamToRetEquivFlow(?to:number, ?from:number, ?method:Method) 
 
 VarPointsTo(var, value) :- Alloc(var, value).
 VarPointsTo(to, value) :- 
@@ -270,30 +273,43 @@ IsHeapObject(value) :-
 //     IsHeapSubset(subset, middleset),
 //     IsHeapSubset(middleset, set).
 
-FlowFromEdge(to, from) :-
+FlowFromEdge(to, from, "normal") :-
     CallGraphEdge(invo, _),
     (ActualParam(_, invo, from); ActualKeyParam(_, invo, from)),
     ActualReturn(_, invo, to).
 
-FlowFromEdge(to, from) :-
+FlowFromEdge(to, from, "normal") :-
     CallGraphEdge(invo, meth),
     ParamToParamFlow(toIdx, fromIdx, meth),
     ActualParam(toIdx, invo, to),
     ActualParam(fromIdx, invo, from).
 
-FlowFromEdge(to, from) :-
-    InterProcAssign(to, from).
-
-FlowFromEdge(to, from) :-
-    AssignVar(to, from); LoadIndex(to, from, _); StoreIndex(to, _, from); 
+FlowFromEdge(to, from, "normal") :-
+    InterProcAssign(to, from); AssignVar(to, from); LoadIndex(to, from, _); StoreIndex(to, _, from); 
     LoadField(to, from, _); StoreField(to, _, from); LoadSlice(to, from, _, _, _).
 
-FlowFrom(to, from) :-
-    FlowFromEdge(to, from).
+FlowFromEdge(to, from, "equiv") :-
+    InterProcAssign(to, from); AssignVar(to, from).
 
-FlowFrom(to, from) :-
-    FlowFrom(to, mid),
-    FlowFrom(mid, from).
+FlowFromEdge(to, from, "equiv") :-
+    LoadField(to, from, f),
+    (f = "loc"; f = "values"). // should also add type requirement [TODO]
+
+FlowFromEdge(to, from, "equiv") :-
+    LoadIndex(to, from, _). // should also add type requirement [TODO]
+
+FlowFromEdge(to, from, "equiv") :-
+    CallGraphEdge(invo, meth),
+    ParamToRetEquivFlow(toIdx, fromIdx, meth),
+    ActualParam(fromIdx, invo, from),
+    ActualReturn(toIdx, invo, to).
+
+FlowFrom(to, from, tag) :-
+    FlowFromEdge(to, from, tag).
+
+FlowFrom(to, from, tag) :-
+    FlowFrom(to, mid, tag),
+    FlowFrom(mid, from, tag).
 
 // ValueFlowTo(toHeap, fromHeap) :-
 //     ActualParam(fromIndex, invo, from),
@@ -398,7 +414,7 @@ IsTaintObject(newValue),
 VarPointsTo(var, value),
 TaintSource(newValue, srcValue, taintType)  :-
     newValue = ValueIdMacro(oldValue, taintType),
-    FlowFromEdge(to, from),
+    FlowFromEdge(to, from, _),
     VarPointsTo(from, value),
     IsTaintObject(value),
     TaintSource(value, srcValue, taintType),
@@ -411,18 +427,22 @@ TaintSource(newValue, srcValue, taintType)  :-
 .decl Leak(value:Value, invo:Invocation, meth:Method)
 
 TrainingDataTaintValue(model, taintValue, invo, meth) :-
-    TrainingData(meth, model_idx, idx),
+    (TrainingData(meth, model_idx, idx),
+    ActualParam(idx, invo, var);
+    TrainingDataByKey(meth, model_idx, keyword),
+    ActualKeyParam(keyword, invo, var)),
     CallGraphEdge(invo, meth),
-    ActualParam(idx, invo, var),
-    FlowFrom(var, tainted_var),
+    FlowFrom(var, tainted_var, _),
     VarPointsTo(tainted_var, taintValue),
     IsTaintObject(taintValue),
     ActualParam(model_idx, invo, model).
 
 TestDataValue(model, var, invo, meth) :-
-    TestData(meth, model_idx, idx),
+    (TestData(meth, model_idx, idx),
+    ActualParam(idx, invo, var);
+    TestDataByKey(meth, model_idx, keyword),
+    ActualKeyParam(keyword, invo, var)),
     CallGraphEdge(invo, meth),
-    ActualParam(idx, invo, var),
     ActualParam(model_idx, invo, model).
 
 Leak(taintValue, invo, meth) :-
@@ -430,8 +450,9 @@ Leak(taintValue, invo, meth) :-
     TestDataValue(model2, test, _, _),
     TaintSource(taintValue, srcValue, "rowset"),
     VarPointsTo(src, srcValue),
-    FlowFrom(test, src),
-    (model = model2; FlowFrom(model2, model)).
+    (FlowFrom(test, src, _);
+    FlowFrom(test, src_equiv, _), FlowFrom(src, src_equiv, "equiv")),
+    (model = model2; FlowFrom(model2, model, _)).
 
 
 .output TrainingDataTaintValue
