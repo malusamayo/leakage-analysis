@@ -189,17 +189,12 @@ TestDataByKey(meth, 0, "x") :-
 
 .decl InterProcAssign(to:Var, from:Var)
 
-// .decl TaintedValue(value:Value)
 .decl TaintedVar(var:Var)
-.decl TaintSource(taintValue:Value, srcValue:Value, taintType:symbol)
+// .decl TaintSource(taintValue:Value, srcValue:Value, taintType:symbol)
 // .decl TaintFrom(to:Var, from:Var)
 
-// .decl ValueFlowTo(to:Value, from:Value)
-
-.decl IsHeapObject(value:Value)
-.decl IsTaintObject(value:Value)
-
-// .decl IsHeapSubset(subset:Value, set:Value)
+// .decl IsHeapObject(value:Value)
+// .decl IsTaintObject(value:Value)
 
 // data flow analysis
 .decl FlowFrom(?to:Var, ?from:Var, ?tag:symbol)
@@ -256,8 +251,8 @@ VarPointsTo(to, value) :-
     VarPointsTo(from, value).
     // IsHeapObject(value).
 
-IsHeapObject(value) :-
-    Alloc(_, value).
+// IsHeapObject(value) :-
+//     Alloc(_, value).
 
 // IsHeapSubset(subset, set) :-
 //     ActualParam(fromIndex, invo, from),
@@ -333,56 +328,56 @@ FlowFrom(to, from, tag) :-
 //     ValueFlowTo(midHeap, fromHeap).
 
 
-TaintedVar(var) :-
-    VarPointsTo(var, value),
-    IsTaintObject(value).
+// TaintedVar(var) :-
+//     VarPointsTo(var, value),
+//     IsTaintObject(value).
 
-IsTaintObject(value),
-VarPointsTo(to, value),
-TaintSource(value, fromValue, taintType) :-
-    value = ValueIdMacro(fromValue, taintType),
-    CallGraphEdge(invo, meth),
-    ParamToRetTaintSourceMethod(toIdx, fromIdx, meth, taintType),
-    ActualParam(fromIdx, invo, from),
-    ActualReturn(toIdx, invo, to),
-    VarPointsTo(from, fromValue),
-    IsHeapObject(fromValue).
+// IsTaintObject(value),
+// VarPointsTo(to, value),
+// TaintSource(value, fromValue, taintType) :-
+//     value = ValueIdMacro(fromValue, taintType),
+//     CallGraphEdge(invo, meth),
+//     ParamToRetTaintSourceMethod(toIdx, fromIdx, meth, taintType),
+//     ActualParam(fromIdx, invo, from),
+//     ActualReturn(toIdx, invo, to),
+//     VarPointsTo(from, fromValue),
+//     IsHeapObject(fromValue).
 
-IsTaintObject(value),
-VarPointsTo(to, value),
-TaintSource(value, fromValue, taintType) :-
-    value = ValueIdMacro(fromValue, taintType),
-    CallGraphEdge(invo, meth),
-    ParamToParamTaintSourceMethod(toIdx, fromIdx, meth, taintType),
-    ActualParam(fromIdx, invo, from),
-    ActualParam(toIdx, invo, to),
-    VarPointsTo(from, fromValue),
-    IsHeapObject(fromValue).
+// IsTaintObject(value),
+// VarPointsTo(to, value),
+// TaintSource(value, fromValue, taintType) :-
+//     value = ValueIdMacro(fromValue, taintType),
+//     CallGraphEdge(invo, meth),
+//     ParamToParamTaintSourceMethod(toIdx, fromIdx, meth, taintType),
+//     ActualParam(fromIdx, invo, from),
+//     ActualParam(toIdx, invo, to),
+//     VarPointsTo(from, fromValue),
+//     IsHeapObject(fromValue).
 
-IsTaintObject(value),
-VarPointsTo(to, value),
-TaintSource(value, toValue, taintType) :-
-    value = ValueIdMacro(toValue, taintType),
-    CallGraphEdge(invo, meth),
-    RetTaintSourceMethod(idx, meth, taintType),
-    ActualReturn(idx, invo, to),
-    VarPointsTo(to, toValue),
-    IsHeapObject(toValue).
+// IsTaintObject(value),
+// VarPointsTo(to, value),
+// TaintSource(value, toValue, taintType) :-
+//     value = ValueIdMacro(toValue, taintType),
+//     CallGraphEdge(invo, meth),
+//     RetTaintSourceMethod(idx, meth, taintType),
+//     ActualReturn(idx, invo, to),
+//     VarPointsTo(to, toValue),
+//     IsHeapObject(toValue).
 
-IsTaintObject(value),
-VarPointsTo(to, value),
-TaintSource(value, fromValue, taintType) :-
-    value = ValueIdMacro(fromValue, taintType),
-    CallGraphEdge(invo, meth),
-    ParamToRetCondTaintSourceMethod(toIdx, fromIdx, cond_id, meth, taintType),
-    TaintCondition(cond_id, srcIdx, srcTaintType),
-    ActualParam(srcIdx, invo, src),
-    VarPointsTo(src, srcValue),
-    TaintSource(srcValue, _, srcTaintType),
-    ActualParam(fromIdx, invo, from),
-    ActualReturn(toIdx, invo, to),
-    VarPointsTo(from, fromValue),
-    IsHeapObject(fromValue).
+// IsTaintObject(value),
+// VarPointsTo(to, value),
+// TaintSource(value, fromValue, taintType) :-
+//     value = ValueIdMacro(fromValue, taintType),
+//     CallGraphEdge(invo, meth),
+//     ParamToRetCondTaintSourceMethod(toIdx, fromIdx, cond_id, meth, taintType),
+//     TaintCondition(cond_id, srcIdx, srcTaintType),
+//     ActualParam(srcIdx, invo, src),
+//     VarPointsTo(src, srcValue),
+//     TaintSource(srcValue, _, srcTaintType),
+//     ActualParam(fromIdx, invo, from),
+//     ActualReturn(toIdx, invo, to),
+//     VarPointsTo(from, fromValue),
+//     IsHeapObject(fromValue).
 
 // TaintFrom(to, from):-
 //     ActualParam(toIndex, invo, to),
@@ -410,31 +405,72 @@ TaintSource(value, fromValue, taintType) :-
 // TaintFrom(to, from) :-
 //     FlowFrom(to, from).
 
-IsTaintObject(newValue),
-VarPointsTo(var, value),
-TaintSource(newValue, srcValue, taintType)  :-
-    newValue = ValueIdMacro(oldValue, taintType),
-    FlowFromEdge(to, from, _),
-    VarPointsTo(from, value),
-    IsTaintObject(value),
-    TaintSource(value, srcValue, taintType),
-    VarPointsTo(to, oldValue),
-    Alloc(var, oldValue),
-    IsHeapObject(oldValue).
+// IsTaintObject(newValue),
+// VarPointsTo(var, value),
+// TaintSource(newValue, srcValue, taintType)  :-
+//     newValue = ValueIdMacro(oldValue, taintType),
+//     FlowFromEdge(to, from, _),
+//     VarPointsTo(from, value),
+//     IsTaintObject(value),
+//     TaintSource(value, srcValue, taintType),
+//     VarPointsTo(to, oldValue),
+//     Alloc(var, oldValue), // this is important!
+//     IsHeapObject(oldValue).
 
-.decl TrainingDataTaintValue(model:Var, taintValue:Value, invo:Invocation, meth:Method)
+// .decl TrainingDataTaintValue(model:Var, taintValue:Value, invo:Invocation, meth:Method)
+.decl TrainingDataValue(model:Var, taintVar:Var, invo:Invocation, meth:Method)
 .decl TestDataValue(model:Var, test:Var, invo:Invocation, meth:Method)
-.decl Leak(value:Value, invo:Invocation, meth:Method)
+.decl Leak(value:Var, invo:Invocation, meth:Method)
 
-TrainingDataTaintValue(model, taintValue, invo, meth) :-
+// TrainingDataTaintValue(model, taintValue, invo, meth) :-
+//     (TrainingData(meth, model_idx, idx),
+//     ActualParam(idx, invo, var);
+//     TrainingDataByKey(meth, model_idx, keyword),
+//     ActualKeyParam(keyword, invo, var)),
+//     CallGraphEdge(invo, meth),
+//     FlowFrom(var, tainted_var, _),
+//     VarPointsTo(tainted_var, taintValue),
+//     IsTaintObject(taintValue),
+//     ActualParam(model_idx, invo, model).
+
+.decl TaintStarts(var:Var, label:symbol)
+
+TaintStarts(var, label) :-
+    CallGraphEdge(invo, meth),
+    RetTaintSourceMethod(idx, meth, label),
+    ActualReturn(idx, invo, var).
+
+TaintStarts(var, label) :-
+    CallGraphEdge(invo, meth),
+    (ParamToParamTaintSourceMethod(_, fromIdx, meth, label);
+    ParamToRetTaintSourceMethod(_, fromIdx, meth, label);
+    ParamToRetCondTaintSourceMethod(_, fromIdx, cond_id, meth, label), TaintCondition(cond_id, srcIdx, srcTaintType),
+    ActualParam(srcIdx, invo, src), FlowFrom(src, src_start, _), TaintStarts(src_start, srcTaintType)),
+    ActualParam(fromIdx, invo, var).
+
+TaintedVar(var) :-  
+    TaintStarts(var, _).
+
+TaintedVar(to) :-  
+    FlowFrom(to, from, _),
+    TaintedVar(from).
+
+TaintedVar(to) :-  
+    VarPointsTo(to, value),
+    VarPointsTo(from, value),
+    TaintedVar(from).
+
+TrainingDataValue(model, taint_var, invo, meth) :-
     (TrainingData(meth, model_idx, idx),
     ActualParam(idx, invo, var);
     TrainingDataByKey(meth, model_idx, keyword),
     ActualKeyParam(keyword, invo, var)),
     CallGraphEdge(invo, meth),
-    FlowFrom(var, tainted_var, _),
-    VarPointsTo(tainted_var, taintValue),
-    IsTaintObject(taintValue),
+    FlowFrom(var, start_var, _),
+    TaintStarts(taint_var, "rowset"),
+    FlowFrom(end_var, taint_var, _),
+    VarPointsTo(start_var, value),
+    VarPointsTo(end_var, value),
     ActualParam(model_idx, invo, model).
 
 TestDataValue(model, var, invo, meth) :-
@@ -445,17 +481,24 @@ TestDataValue(model, var, invo, meth) :-
     CallGraphEdge(invo, meth),
     ActualParam(model_idx, invo, model).
 
-Leak(taintValue, invo, meth) :-
-    TrainingDataTaintValue(model, taintValue, invo, meth),
+// Leak(taintValue, invo, meth) :-
+//     TrainingDataTaintValue(model, taintValue, invo, meth),
+//     TestDataValue(model2, test, _, _),
+//     TaintSource(taintValue, srcValue, "rowset"),
+//     VarPointsTo(src, srcValue),
+//     (FlowFrom(test, src, _);
+//     FlowFrom(test, src_equiv, _), FlowFrom(src, src_equiv, "equiv")),
+//     (model = model2; FlowFrom(model2, model, _)).
+
+Leak(src, invo, meth) :-
+    TrainingDataValue(model, src, invo, meth),
     TestDataValue(model2, test, _, _),
-    TaintSource(taintValue, srcValue, "rowset"),
-    VarPointsTo(src, srcValue),
     (FlowFrom(test, src, _);
     FlowFrom(test, src_equiv, _), FlowFrom(src, src_equiv, "equiv")),
     (model = model2; FlowFrom(model2, model, _)).
 
 
-.output TrainingDataTaintValue
+.output TrainingDataValue
 .output TestDataValue
 .output FlowFromEdge
 .output TaintedVar
