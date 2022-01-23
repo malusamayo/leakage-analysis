@@ -38,7 +38,7 @@ def test_fillna():
     
 
 def test_tfidf():
-    template("nb_100841.py", ["Unknown.fit"])
+    template("nb_100841.py", ["MultinomialNB | Unbound.fit"])
     template("nb_334422.py", ['AdaBoostRegressor.fit', 'DecisionTreeRegressor.fit', 
                             'GradientBoostingRegressor.fit', 'KNeighborsRegressor.fit', 
                             'LassoCV.fit', 'LinearRegression.fit',
@@ -48,7 +48,7 @@ def test_dataFrameMapper():
     template("nb_132929.py", ["GaussianNB.fit", "SGDClassifier.fit"])
 
 def test_scaler():
-    template("nb_175471.py", ["Unknown.fit"])
+    template("nb_175471.py", ["list[MultinomialNB].fit", "Unknown.fit"])
     template("nb_194503.py", ["Model.fit"])
     template("nb_273933.py", ["Unknown.fit", "KNeighborsClassifier.fit"])
     template("nb_362989.py", ["SGDClassifier.fit", "GaussianNB.fit"])

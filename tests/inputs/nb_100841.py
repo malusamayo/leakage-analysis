@@ -157,13 +157,11 @@ weightedFreqOfWords = pd.DataFrame(invFreqOfWords.toarray())
 weightedFreqOfWords['isSpam'] = journalsFinal['isSpam']
 weightedFreqOfWords['isSpam'] = weightedFreqOfWords['isSpam'].astype(int)
 train, test, spamLabelTrain, spamLabelTest = train_test_split(weightedFreqOfWords, weightedFreqOfWords['isSpam'], test_size = 0.5)    
-#predictAndReport(algo = algorithm, train = train, test = test)
+predictAndReport(algo = algorithm, train = train, test = test)
 
 
 
 
 # In[ ]:
-model.fit(train)
-model.predict(test)
 
 
