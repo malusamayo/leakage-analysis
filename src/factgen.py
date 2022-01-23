@@ -100,15 +100,24 @@ class FactGenerator(ast.NodeVisitor):
             ast.DictComp: self.FManager.get_new_dict,
         }
         self.scope_stack = []
+        self.import_map = {}
     
     def load_type_map(self, json_path):
         with open(json_path) as f:
             self.type_map = json.load(f) 
 
+    def import_map_get(self, key):
+        if key in self.import_map:
+            return self.import_map[key]
+        return key
+
     def visit_Import(self,node):
         return ast.NodeTransformer.generic_visit(self, node)
 
     def visit_ImportFrom(self,node):
+        for name in node.names:
+            assert type(name) == ast.alias
+            self.import_map[name.name] = '.'.join([node.module, name.name])
         return ast.NodeTransformer.generic_visit(self, node)
 
     def visit_FunctionDef(self, node, inClass=False):

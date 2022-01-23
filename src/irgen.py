@@ -26,6 +26,11 @@ class CodeTransformer(ast.NodeTransformer):
         # else:
         return rets
 
+    def visit_FunctionDef(self, node):
+        # renaming args [TODO]
+        # for arg in node.args.args:
+        return self.generic_visit(node)
+
     def visit_ClassDef(self, node):
         node.body = self.visit_Body(node.body)
         return node
