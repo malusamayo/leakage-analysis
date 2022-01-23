@@ -57,33 +57,33 @@
 
 
 // train/test locations
-.decl TrainingData(?method:Method, ?model_idx:number, ?data_index:number)
-.decl TrainingDataByKey(?method:Method, ?model_idx:number, ?datakw:Var)
-.decl TestData(?method:Method, ?model_idx:number, ?data_index:number)
-.decl TestDataByKey(?method:Method, ?model_idx:number, ?datakw:Var)
+.decl TrainingData(method:Method, model_idx:number, data_index:number)
+.decl TrainingDataByKey(method:Method, model_idx:number, datakw:Var)
+.decl TestData(method:Method, model_idx:number, data_index:number)
+.decl TestDataByKey(method:Method, model_idx:number, datakw:Var)
 
 // taint analysis input relations
-.decl ParamToRetTaintSourceMethod(?to:number, ?from:number, ?method:Method, ?taintType:symbol)
-.decl ParamToParamTaintSourceMethod(?to:number, ?from:number, ?method:Method, ?taintType:symbol)
-.decl RetTaintSourceMethod(?retIndex:number, ?method:Method, ?taintType:symbol)
-.decl ParamToRetCondTaintSourceMethod(?to:number, ?from:number, ?cond_id:number, ?method:Method, ?taintType:symbol)
-.decl ParamToParamCondTaintSourceMethod(?to:number, ?from:number, ?cond_id:number, ?method:Method, ?taintType:symbol)
-.decl TaintCondition(?cond_id:number, ?src_idx:number, ?taintType:symbol)
+.decl ParamToRetTaintSourceMethod(to:number, from:number, method:Method, taintType:symbol)
+.decl ParamToParamTaintSourceMethod(to:number, from:number, method:Method, taintType:symbol)
+.decl RetTaintSourceMethod(retIndex:number, method:Method, taintType:symbol)
+.decl ParamToRetCondTaintSourceMethod(to:number, from:number, cond_id:number, method:Method, taintType:symbol)
+.decl ParamToParamCondTaintSourceMethod(to:number, from:number, cond_id:number, method:Method, taintType:symbol)
+.decl TaintCondition(cond_id:number, src_idx:number, taintType:symbol)
 
-// .decl ParamToParamTaintTransferMethod(?to:number, ?from:number, ?method:Method)
-// .decl ParamToRetTaintTransferMethod(?to:number, ?from:number, ?method:Method)
-// .decl ParamKeyToRetTaintTransferMethod(?to:number, ?from:Var, ?method:Method)
+// .decl ParamToParamTaintTransferMethod(to:number, from:number, method:Method)
+// .decl ParamToRetTaintTransferMethod(to:number, from:number, method:Method)
+// .decl ParamKeyToRetTaintTransferMethod(to:number, from:Var, method:Method)
 
 
-// .decl TaintSourceRetMethod(?method:Method, ?index:number, ?taintType:symbol)
-// .decl TaintSourceSetRetMethod(?method:Method, ?to:number, ?from:number, ?taintType:symbol)
-// .decl SinkMethod(?method:Method, ?index:number, ?label:symbol)
-// .decl ParamToParamSetTaintTransferMethod(?to:number, ?from:number, ?method:Method)
-// .decl ParamToRetSetTaintTransferMethod(?to:number, ?from:number, ?method:Method)
+// .decl TaintSourceRetMethod(method:Method, index:number, taintType:symbol)
+// .decl TaintSourceSetRetMethod(method:Method, to:number, from:number, taintType:symbol)
+// .decl SinkMethod(method:Method, index:number, label:symbol)
+// .decl ParamToParamSetTaintTransferMethod(to:number, from:number, method:Method)
+// .decl ParamToRetSetTaintTransferMethod(to:number, from:number, method:Method)
 
 // // heap flow analysis facts
-// .decl ParamToRetSubsetMethod(?to:number, ?from:number, ?method:Method)
-// .decl ParamToRetEquivMethod(?to:number, ?from:number, ?method:Method)
+// .decl ParamToRetSubsetMethod(to:number, from:number, method:Method)
+// .decl ParamToRetEquivMethod(to:number, from:number, method:Method)
 
 
 // -- facts --
@@ -197,10 +197,10 @@ TestDataByKey(meth, 0, "x") :-
 // .decl IsTaintObject(value:Value)
 
 // data flow analysis
-.decl FlowFrom(?to:Var, ?from:Var, ?tag:symbol)
-.decl FlowFromEdge(?to:Var, ?from:Var, ?tag:symbol)
-.decl ParamToParamFlow(?to:number, ?from:number, ?method:Method) // input facts
-.decl ParamToRetEquivFlow(?to:number, ?from:number, ?method:Method) 
+.decl FlowFrom(to:Var, from:Var, tag:symbol)
+.decl FlowFromEdge(to:Var, from:Var, tag:symbol)
+.decl ParamToParamFlow(to:number, from:number, method:Method) // input facts
+.decl ParamToRetEquivFlow(to:number, from:number, method:Method) 
 
 VarPointsTo(var, value) :- Alloc(var, value).
 VarPointsTo(to, value) :- 
@@ -305,6 +305,19 @@ FlowFrom(to, from, tag) :-
 FlowFrom(to, from, tag) :-
     FlowFrom(to, mid, tag),
     FlowFrom(mid, from, tag).
+
+.decl FlowFromExtended(to:Var, from:Var, tag:symbol)
+
+FlowFromExtended(to, from, tag) :-
+    FlowFrom(to, from, tag).
+
+FlowFromExtended(to, from, "normal") :-  
+    VarPointsTo(to, value),
+    VarPointsTo(from, value).
+
+FlowFromExtended(to, from, tag) :-
+    FlowFromExtended(to, mid, tag),
+    FlowFromExtended(mid, from, tag).
 
 // ValueFlowTo(toHeap, fromHeap) :-
 //     ActualParam(fromIndex, invo, from),
@@ -434,18 +447,20 @@ FlowFrom(to, from, tag) :-
 //     ActualParam(model_idx, invo, model).
 
 .decl TaintStarts(var:Var, label:symbol)
+.decl TaintStartsTarget(var:Var, target:Var, label:symbol)
 
 TaintStarts(var, label) :-
     CallGraphEdge(invo, meth),
     RetTaintSourceMethod(idx, meth, label),
     ActualReturn(idx, invo, var).
 
-TaintStarts(var, label) :-
+TaintStarts(var, label),
+TaintStartsTarget(var, target, label) :-
     CallGraphEdge(invo, meth),
-    (ParamToParamTaintSourceMethod(_, fromIdx, meth, label);
-    ParamToRetTaintSourceMethod(_, fromIdx, meth, label);
-    ParamToRetCondTaintSourceMethod(_, fromIdx, cond_id, meth, label), TaintCondition(cond_id, srcIdx, srcTaintType),
-    ActualParam(srcIdx, invo, src), FlowFrom(src, src_start, _), TaintStarts(src_start, srcTaintType)),
+    (ParamToParamTaintSourceMethod(toIdx, fromIdx, meth, label), ActualParam(toIdx, invo, target);
+    ParamToRetTaintSourceMethod(toIdx, fromIdx, meth, label), ActualReturn(toIdx, invo, target);
+    ParamToRetCondTaintSourceMethod(toIdx, fromIdx, cond_id, meth, label), TaintCondition(cond_id, srcIdx, srcTaintType),
+    ActualParam(srcIdx, invo, src), FlowFrom(src, src_start, _), TaintStarts(src_start, srcTaintType), ActualReturn(toIdx, invo, target)),
     ActualParam(fromIdx, invo, var).
 
 TaintedVar(var) :-  
@@ -466,11 +481,12 @@ TrainingDataValue(model, taint_var, invo, meth) :-
     TrainingDataByKey(meth, model_idx, keyword),
     ActualKeyParam(keyword, invo, var)),
     CallGraphEdge(invo, meth),
-    FlowFrom(var, start_var, _),
-    TaintStarts(taint_var, "rowset"),
-    FlowFrom(end_var, taint_var, _),
-    VarPointsTo(start_var, value),
-    VarPointsTo(end_var, value),
+    TaintStartsTarget(taint_var, target_var, "rowset"),
+    FlowFromExtended(var, target_var, _),
+    // FlowFrom(var, start_var, _),
+    // FlowFrom(end_var, target_var, _),
+    // VarPointsTo(start_var, value),
+    // VarPointsTo(end_var, value),
     ActualParam(model_idx, invo, model).
 
 TestDataValue(model, var, invo, meth) :-
