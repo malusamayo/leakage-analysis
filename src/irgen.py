@@ -12,7 +12,7 @@ class CodeTransformer(ast.NodeTransformer):
         self.FManager = FactManager()
         self.name_map = {}
         self.unchanged_nodeclasses = [ast.Global, ast.Nonlocal, ast.Pass, ast.Break, ast.Continue, ast.Import, ast.ImportFrom, ast.alias]
-        self.ctx = []
+        self.ctx = ['main']
 
     def visit(self, node):
         """Visit a node."""
@@ -22,7 +22,7 @@ class CodeTransformer(ast.NodeTransformer):
 
     def generic_visit(self, node):
         rets = ast.NodeTransformer.generic_visit(self, node)
-        if type(node) not in self.unchanged_nodeclasses + [ast.Module]:
+        if type(node) not in self.unchanged_nodeclasses + [ast.Module, ast.Expr]:
             print(type(node))
             assert False
         return rets
@@ -148,8 +148,8 @@ class CodeTransformer(ast.NodeTransformer):
         return nodes1 + nodes2, ast.Assert(new_test, new_msg)
 
     def visit_Expr(self, node):
-        nodes, new_node = self.visit(node.value)
-        return nodes + [ast.Expr(new_node)]
+        # nodes, new_node = self.visit(node.value)
+        # return nodes + [ast.Expr(new_node)]
         rets = self.generic_visit(node)
         if len(rets.value) == 2:
             assert type(rets.value[0]) == list
