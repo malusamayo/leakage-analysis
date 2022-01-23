@@ -10,6 +10,7 @@ class FactManager(object):
         self.var_num = 0
         self.func_num = 0
         self.heap_num = 0
+        self.ctx_num = 0
         self.datalog_facts = {
             "AssignVar": [],
             "AssignStrConstant": [],
@@ -82,6 +83,11 @@ class FactManager(object):
         old_var = self.var_num
         self.var_num += 1
         return "$dict" + str(old_var)
+
+    def get_new_ctx(self):
+        old_var = self.ctx_num
+        self.ctx_num += 1
+        return "ctx" + str(old_var)
 
 
 class FactGenerator(ast.NodeVisitor):

@@ -1,5 +1,6 @@
 import os, sys
 import ast
+from this import d
 import astunparse
 import json
 from .factgen import FactManager
@@ -10,6 +11,8 @@ class CodeTransformer(ast.NodeTransformer):
         super().__init__()
         self.FManager = FactManager()
         self.name_map = {}
+        self.unchanged_nodeclasses = [ast.Global, ast.Nonlocal, ast.Pass, ast.Break, ast.Continue, ast.Import, ast.ImportFrom, ast.alias]
+        self.ctx = []
 
     def visit(self, node):
         """Visit a node."""
@@ -19,23 +22,13 @@ class CodeTransformer(ast.NodeTransformer):
 
     def generic_visit(self, node):
         rets = ast.NodeTransformer.generic_visit(self, node)
-        if type(node) not in [ast.Module, ast.FunctionDef, ast.Import, ast.ImportFrom, ast.alias, ast.Expr]:
+        if type(node) not in self.unchanged_nodeclasses + [ast.Module]:
             print(type(node))
-        # if type(rets) != tuple:
-        #     return rets #, ast.Pass()
-        # else:
+            assert False
         return rets
 
-    def visit_FunctionDef(self, node):
-        # renaming args [TODO]
-        # for arg in node.args.args:
-        return self.generic_visit(node)
-
-    def visit_ClassDef(self, node):
-        node.body = self.visit_Body(node.body)
-        return node
-
     def visit_Body(self, body):
+        self.ctx.append(self.FManager.get_new_ctx())
         if isinstance(body, list):
             new_values = []
             for value in body:
@@ -48,7 +41,43 @@ class CodeTransformer(ast.NodeTransformer):
                         continue
                 new_values.append(value)
             body[:] = new_values
+        self.ctx.pop()
         return body
+
+    def visit_ClassDef(self, node):
+        node.body = self.visit_Body(node.body)
+        return node
+
+    def visit_FunctionDef(self, node):
+        # renaming args [TODO]
+        # for arg in node.args.args:
+        node.body = self.visit_Body(node.body)
+        return node
+
+    def visit_AsyncFunctionDef(self, node):
+        # ast.Await/AsyncFor/AsyncWith [TODO]
+        return self.visit_FunctionDef(node)
+
+    def visit_Lambda(self, node):
+        nodes, ret = self.visitNameOnly(node.body)
+        nodes.append(ast.Return(ret))
+        func_name = self.FManager.get_new_func()
+        return [ast.FunctionDef(func_name, node.args, nodes, [])], ast.Name(func_name)
+
+    def visit_Return(self, node):
+        nodes1, newValue = self.visitNameAndTupleOnly(node.value)
+        node.value = newValue
+        return nodes1 + [node]
+    
+    def visit_Yield(self, node):
+        nodes1, newValue = self.visitNameAndTupleOnly(node.value)
+        node.value = newValue
+        return nodes1 + [node]
+
+    def visit_YieldFrom(self, node):
+        nodes1, newValue = self.visitNameAndTupleOnly(node.value)
+        node.value = newValue
+        return nodes1 + [node]
 
     def visit_For(self, node):
         nodes, new_iter = self.visitNameOnly(node.iter)
@@ -77,15 +106,23 @@ class CodeTransformer(ast.NodeTransformer):
         nodes2, new_orelse = self.visitNameOnly(node.orelse)
         return nodes + nodes1 + nodes2, ast.IfExp(new_test, new_body, new_orelse)
 
-    def visit_Return(self, node):
-        nodes1, newValue = self.visitNameAndTupleOnly(node.value)
-        node.value = newValue
-        return nodes1 + [node]
-    
-    def visit_Yield(self, node):
-        nodes1, newValue = self.visitNameAndTupleOnly(node.value)
-        node.value = newValue
-        return nodes1 + [node]
+    def visit_Try(self, node):
+        node.body = self.visit_Body(node.body)
+        node.handlers = self.visit_Body(node.handlers)
+        node.orelse = self.visit_Body(node.orelse)
+        node.finalbody = self.visit_Body(node.finalbody)
+        return [], node
+
+    def visit_ExceptHandler(self, node):
+        node.body = self.visit_Body(node.body)
+        return [], node
+
+    def visit_With(self, node):
+        # node.items stay the same (for now)
+        node.body = self.visit_Body(node.body)
+        return [], node
+
+    # ignore pattern matching for now
 
     def visit_Delete(self, node):
         nodes = []
@@ -95,8 +132,24 @@ class CodeTransformer(ast.NodeTransformer):
             new_vars.append(new_v)
             nodes += nodes1
         return nodes, ast.Delete(new_vars)
+    
+    def visit_Raise(self, node):
+        nodes1, new_exec = self.visitNameOnly(node.exec)
+        nodes2, new_cause = [], None
+        if node.msg:
+            nodes2, new_cause = self.visitNameOnly(node.cause)
+        return nodes1 + nodes2, ast.Raise(new_exec, new_cause)
+
+    def visit_Assert(self, node):
+        nodes1, new_test = self.visitNameOnly(node.test)
+        nodes2, new_msg = [], None
+        if node.msg:
+            nodes2, new_msg = self.visitNameOnly(node.msg)
+        return nodes1 + nodes2, ast.Assert(new_test, new_msg)
 
     def visit_Expr(self, node):
+        nodes, new_node = self.visit(node.value)
+        return nodes + [ast.Expr(new_node)]
         rets = self.generic_visit(node)
         if len(rets.value) == 2:
             assert type(rets.value[0]) == list
@@ -250,9 +303,6 @@ class CodeTransformer(ast.NodeTransformer):
         return nodes + nodes1, ast.Attribute(new_v, node.attr)
 
     def visit_arguments(self, args):
-        # arg list in function definition
-        if type(args) == ast.arguments:
-            return args
         nodes = []
         arg_names = []
         for i, arg in enumerate(args):
@@ -292,19 +342,44 @@ class CodeTransformer(ast.NodeTransformer):
         return nodes, newNode
 
     def visit_Name(self, node, assigned = False):
-        nodes = []
-        if node.id not in self.name_map:
-            self.name_map[node.id] = node.id
-            return nodes, ast.Name(self.name_map[node.id])
-        if assigned:
-            old_id = self.name_map[node.id]
-            try:
-                num = int(old_id.split("$")[-1])
-                self.name_map[node.id] = node.id + '$' + str(num + 1)
-            except ValueError:
-                self.name_map[node.id] = node.id + '$0'
-            # nodes += self.visit_Assign(ast.Assign([ast.Name(self.name_map[node.id])], ast.Name(old_id)))
-        return nodes, ast.Name(self.name_map[node.id].replace('$', '_'))
+        ctx = [x for x in self.ctx]
+        complete_key = '.'.join(self.ctx + [node.id])
+        while True:
+            # first appearance
+            if ctx == []:
+                self.name_map[complete_key] = node.id
+                return [], ast.Name(self.name_map[complete_key])
+            key = '.'.join(ctx + [node.id])
+            # appeared before
+            if key in self.name_map:
+                # update when assigned
+                if assigned:
+                    # new locals
+                    if key != complete_key:
+                        self.name_map[complete_key] = self.name_map[key]
+                        key = complete_key
+                    old_id = self.name_map[key]
+                    try:
+                        num = int(old_id.split("$")[-1])
+                        self.name_map[key] = node.id + '$' + str(num + 1)
+                    except ValueError:
+                        self.name_map[key] = node.id + '$0'
+                return [], ast.Name(self.name_map[key].replace('$', '_'))
+            ctx.pop()
+
+        # key = '.'.join(self.ctx + [node.id])
+        # if key not in self.name_map:
+        #     self.name_map[key] = node.id
+        #     return [], ast.Name(self.name_map[key])
+        # if assigned:
+        #     old_id = self.name_map[key]
+        #     try:
+        #         num = int(old_id.split("$")[-1])
+        #         self.name_map[key] = node.id + '$' + str(num + 1)
+        #     except ValueError:
+        #         self.name_map[key] = node.id + '$0'
+        #     # nodes += self.visit_Assign(ast.Assign([ast.Name(self.name_map[node.id])], ast.Name(old_id)))
+        # return [], ast.Name(self.name_map[key].replace('$', '_'))
 
     def visit_Constant(self, node):
         return [], node
@@ -350,12 +425,6 @@ class CodeTransformer(ast.NodeTransformer):
             new_values.append(new_v)
         return nodes, ast.Dict(new_keys, new_values)
 
-    def visit_Lambda(self, node):
-        nodes, ret = self.visitNameOnly(node.body)
-        nodes.append(ast.Return(ret))
-        func_name = self.FManager.get_new_func()
-        return [ast.FunctionDef(func_name, node.args, nodes, [])], ast.Name(func_name)
-
     # keep exprs below unchanged (for now)
     def visit_ListComp(self, node):
         return [], node
@@ -367,4 +436,16 @@ class CodeTransformer(ast.NodeTransformer):
         return [], node
 
     def visit_GeneratorExp(self, node):
+        return [], node
+
+    def visit_comprehension(self, node):
+        return [], node
+
+    def visit_FormattedValue(self, node):
+        return [], node
+
+    def visit_JoinedStr(self, node):
+        return [], node
+
+    def visit_NamedExpr(self, node):
         return [], node
