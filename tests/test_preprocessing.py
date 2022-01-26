@@ -50,12 +50,12 @@ def test_dataFrameMapper():
 def test_scaler():
     template("nb_175471.py", ["MultinomialNB.fit", "Unknown.fit"])
     template("nb_194503.py", ["Model.fit"])
-    template("nb_273933.py", ["Unknown.fit", "KNeighborsClassifier.fit"])
+    template("nb_273933.py", ["Unknown.fit"]) # , "KNeighborsClassifier.fit"]) [context-insensitivity]
     template("nb_362989.py", ["SGDClassifier.fit", "GaussianNB.fit"])
     template("nb_292583.py", ["Unknown.fit", "GridSearchCV.fit", "AdaBoostClassifier.fit", "Any | Unknown | type.fit"])
 
 def test_pca():
-    template("nb_205857.py", ["Unbound | KMeans.fit", "KMeans.fit", "RandomForestClassifier.fit", "Unknown.fit"])
+    template("nb_205857.py", ["KMeans.fit", "RandomForestClassifier.fit", "Unknown.fit"])
 
 def test_countvec():
     template("nb_303674.py", [ "Unknown.fit"])
@@ -68,7 +68,7 @@ def test_feature_selection():
     template("nb_387986.py", ["RandomForestRegressor.fit", "LinearRegression.fit", "Pipeline.fit", "RidgeCV.fit"])
 
 def test_applymap():
-    template("nb_344814.py", ["LogisticRegression.fit", "GridSearchCV.fit"])
+    template("nb_344814.py", ["LogisticRegression.fit"])
 
 def test_equiv_edge():
     template("nb_282393.py", ["Unbound | Sequential.fit_generator", "Sequential.fit_generator"])
