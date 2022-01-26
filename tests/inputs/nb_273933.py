@@ -495,9 +495,9 @@ sns.barplot(x="nObs", y="scoreTeste", hue="nomeModelo", data=df);
 
 
 # TODO: Import 'GridSearchCV' and 'make_scorer'
-from sklearn.cross_validation import ShuffleSplit
+from sklearn.model_selection import ShuffleSplit
 from sklearn.metrics import make_scorer
-from sklearn import grid_search
+from sklearn.model_selection import GridSearchCV
 # TODO: Create the parameters list you wish to tune
 parameters = {'n_neighbors': [1,2,3,4,5,6,7,8,9,10] }
 
@@ -510,7 +510,7 @@ clf = KNeighborsClassifier()
 f1_scorer = make_scorer(f1_score, pos_label = "yes")
 
 # TODO: Perform grid search on the classifier using the f1_scorer as the scoring method
-grid_obj = grid_search.GridSearchCV(estimator = clf, param_grid = parameters, scoring = f1_scorer, cv = cv_sets)
+grid_obj = GridSearchCV(estimator = clf, param_grid = parameters, scoring = f1_scorer, cv = cv_sets)
 
 
 # TODO: Fit the grid search object to the training data and find the optimal parameters
