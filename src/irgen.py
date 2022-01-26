@@ -67,6 +67,8 @@ class CodeTransformer(ast.NodeTransformer):
     def visit_FunctionDef(self, node):
         self.scopeManager.enterNamedBlock(node.name)
         self.scopeManager.build_arg_map(node.args)
+        
+        # global variable reference [TODO]
         node.body = self.visit_Body(node.body)
         self.scopeManager.leaveNamedBlock()
         return node
@@ -102,14 +104,14 @@ class CodeTransformer(ast.NodeTransformer):
         def visit_Iter(target, iter_id):
             for i, x in enumerate(target.elts):
                 if type(x) == ast.Name:
-                    self.visit_Name(x, assigned=True)
+                    _, target.elts[i] = self.visit_Name(x, assigned=True)
                 elif type(x) in [ast.Tuple, ast.List]:
                     visit_Iter(x, iter_id)
                 else:
                     assert 0
 
         if type(node.target) == ast.Name:
-            self.visit_Name(node.target, assigned=True)
+            _, node.target = self.visit_Name(node.target, assigned=True)
         elif type(node.target) in [ast.Tuple, ast.List]:
             visit_Iter(node.target, node.iter.id)
         else:
