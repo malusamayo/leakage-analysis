@@ -5,7 +5,7 @@ from src import main
 
 def template(test_file, taintMethods):
     test_file_path = os.path.join(".", "tests", "inputs", test_file)
-    test_fact_path = os.path.join("tests", "inputs", test_file.replace(".py", "-fact"), "Leak.csv")
+    test_fact_path = os.path.join("tests", "inputs", test_file.replace(".py", "-fact"), "PreProcessingLeak.csv")
     main.main(test_file_path)
 
     assert os.path.exists(test_fact_path), "Leak result not found!"
@@ -48,14 +48,14 @@ def test_dataFrameMapper():
     template("nb_132929.py", ["GaussianNB.fit", "SGDClassifier.fit"])
 
 def test_scaler():
-    template("nb_175471.py", ["list[MultinomialNB].fit", "Unknown.fit"])
+    template("nb_175471.py", ["MultinomialNB.fit", "Unknown.fit"])
     template("nb_194503.py", ["Model.fit"])
     template("nb_273933.py", ["Unknown.fit", "KNeighborsClassifier.fit"])
     template("nb_362989.py", ["SGDClassifier.fit", "GaussianNB.fit"])
     template("nb_292583.py", ["Unknown.fit", "GridSearchCV.fit", "AdaBoostClassifier.fit", "Any | Unknown | type.fit"])
 
 def test_pca():
-    template("nb_205857.py", ["KMeans.fit", "RandomForestClassifier.fit", "Unknown.fit"])
+    template("nb_205857.py", ["Unbound | KMeans.fit", "KMeans.fit", "RandomForestClassifier.fit", "Unknown.fit"])
 
 def test_countvec():
     template("nb_303674.py", [ "Unknown.fit"])
@@ -71,7 +71,7 @@ def test_applymap():
     template("nb_344814.py", ["LogisticRegression.fit", "GridSearchCV.fit"])
 
 def test_equiv_edge():
-    template("nb_282393.py", ["Sequential.fit_generator"])
+    template("nb_282393.py", ["Unbound | Sequential.fit_generator", "Sequential.fit_generator"])
 
 def test_loop():
     template("nb_248151.py", ["Unknown.fit"]) 

@@ -247,8 +247,8 @@ print("-------------------------------------------------")
 # In[104]:
 
 
-X_train_outer, X_test_outer, y_train_outer, y_test_outer = train_test_split(data, y, test_size=0.33 , random_state=random_state, stratify=y) 
-X_train_outer, y_train_outer = deleteRandom(X_train, y_train, col='DESERTA_ALU')
+X_train_outer, X_test_outer, y_train_outer, y_test_outer = train_test_split(data, y, test_size=0.33 , random_state=None, stratify=y) 
+# X_train_outer, y_train_outer = deleteRandom(X_train, y_train, col='DESERTA_ALU')
 def PerfGridSearchCV(estimator, param_distributions, X_train, y_train, X_test, y_test, n_iter_seach = 5, scoring='roc_auc', n_folds=5, random_state=None, classes_names = ['Alumno no desertor(0)','Alumno desertor(1)'], n_jobs = -1):
     start = time.time()
     pipeline = Pipeline([

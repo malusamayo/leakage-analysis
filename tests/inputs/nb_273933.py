@@ -370,7 +370,7 @@ for modelo in [clf_A, clf_B, clf_C]:
     for n in [100, 200, 300]:
         x = X_train[:n]
         y = y_train[:n]
-        temp = train_predict(modelo, x, y, X_test, y_test)
+        temp = train_predict(modelo, x, y, X_test, y_test = y_test)
         resultado.append(temp)
         scoreTrain.append(temp[3])
         scoreTeste.append(temp[5])
