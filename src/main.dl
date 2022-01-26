@@ -233,16 +233,19 @@ VarPointsTo(to, value) :-
 
 InterProcAssign(to, from) :-
     CallGraphEdge(invo, meth),
+    meth != "__phi__",
     FormalParam(index, meth, to),
     ActualParam(index, invo, from).
 
 InterProcAssign(to, from) :-
     CallGraphEdge(invo, meth),
+    meth != "__phi__",
     FormalParam(_, meth, to),
     ActualKeyParam(to, invo, from).
 
 InterProcAssign(to, from) :-
     CallGraphEdge(invo, meth),
+    meth != "__phi__",
     FormalReturn(index, meth, from),
     ActualReturn(index, invo, to).
 
@@ -311,6 +314,7 @@ FlowFrom(to, from, tag) :-
 FlowFromExtended(to, from, tag) :-
     FlowFrom(to, from, tag).
 
+FlowFromExtended(to, from, "equiv"),
 FlowFromExtended(to, from, "normal") :-  
     VarPointsTo(to, value),
     VarPointsTo(from, value).
@@ -433,7 +437,9 @@ FlowFromExtended(to, from, tag) :-
 // .decl TrainingDataTaintValue(model:Var, taintValue:Value, invo:Invocation, meth:Method)
 .decl TrainingDataValue(model:Var, taintVar:Var, invo:Invocation, meth:Method)
 .decl TestDataValue(model:Var, test:Var, invo:Invocation, meth:Method)
-.decl Leak(value:Var, invo:Invocation, meth:Method)
+.decl Leak(var:Var, invo:Invocation, meth:Method)
+.decl PreProcessingLeak(var:Var, invo:Invocation, meth:Method)
+.decl OverlapLeak(model:Var, invo:Invocation, meth:Method)
 
 // TrainingDataTaintValue(model, taintValue, invo, meth) :-
 //     (TrainingData(meth, model_idx, idx),
@@ -506,17 +512,80 @@ TestDataValue(model, var, invo, meth) :-
 //     FlowFrom(test, src_equiv, _), FlowFrom(src, src_equiv, "equiv")),
 //     (model = model2; FlowFrom(model2, model, _)).
 
-Leak(src, invo, meth) :-
+Leak(var, invo, meth) :-
+    PreProcessingLeak(var, invo, meth);
+    OverlapLeak(var, invo, meth).
+
+PreProcessingLeak(src, invo, meth) :-
     TrainingDataValue(model, src, invo, meth),
     TestDataValue(model2, test, _, _),
-    (FlowFrom(test, src, _);
-    FlowFrom(test, src_equiv, _), FlowFrom(src, src_equiv, "equiv")),
-    (model = model2; FlowFrom(model2, model, _)).
+    (FlowFromExtended(test, src, _);
+    FlowFromExtended(test, src_equiv, _), FlowFromExtended(src, src_equiv, "equiv")),
+    (model = model2; FlowFromExtended(model2, model, _)).
 
+// Overlap detection
+.decl DataOverlap(train:Var, test:Var)
+.decl DuplicateEdge(to:Var, from:Var)
+.decl TrainingDataWithModel(model:Var, train:Var, invo:Invocation, meth:Method)
+.decl TestDataWithModel(model:Var, test:Var)
+
+DataOverlap(train, test) :- // split with slicing will be recognized as overlaps
+    (FlowFromExtended(train, test, _);
+    FlowFromExtended(test, train, _)),
+    train != test. // Or when there is no test data
+
+DataOverlap(train, test) :-
+    DuplicateEdge(des, _),
+    FlowFromExtended(train, des, _),
+    FlowFromExtended(test, des, _).
+
+DataOverlap(train, test) :-
+    DuplicateEdge(des, src),
+    FlowFromExtended(train, des, _),
+    (FlowFromExtended(test, src, _);
+    FlowFromExtended(test, src_equiv, _), 
+    FlowFromExtended(src, src_equiv, "equiv")).
+
+DataOverlap(train, test) :-
+    DuplicateEdge(des, src),
+    FlowFromExtended(test, des, _),
+    (FlowFromExtended(train, src, _);
+    FlowFromExtended(train, src_equiv, _), 
+    FlowFromExtended(src, src_equiv, "equiv")).
+
+TrainingDataWithModel(model, train, invo, meth) :-
+    (TrainingData(meth, model_idx, idx),
+    ActualParam(idx, invo, train);
+    TrainingDataByKey(meth, model_idx, keyword),
+    ActualKeyParam(keyword, invo, train)),
+    CallGraphEdge(invo, meth),
+    ActualParam(model_idx, invo, model).
+
+TestDataWithModel(model, test) :-
+    (TestData(meth, model_idx, idx),
+    ActualParam(idx, invo, test);
+    TestDataByKey(meth, model_idx, keyword),
+    ActualKeyParam(keyword, invo, test)),
+    CallGraphEdge(invo, meth),
+    ActualParam(model_idx, invo, model).
+
+OverlapLeak(testModel, invo, meth) :-
+    TrainingDataWithModel(trainModel, train, invo, meth),
+    TestDataWithModel(testModel, test),
+    DataOverlap(train, test),
+    testModel = trainModel. // how to handle model propagation? [TODO]
+
+// OverlapLeak(testModel, val, test) :-
+//     ValData(valModel, val),
+//     TestData(testModel, test),
+//     DataOverlap(val, test),
+//     FlowFromExtended(testModel, valModel, _).
 
 .output TrainingDataValue
 .output TestDataValue
 .output FlowFromEdge
 .output TaintedVar
 .output VarPointsTo
-.output Leak
+.output DataOverlap
+.output PreProcessingLeak
+.output OverlapLeak

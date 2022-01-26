@@ -1,18 +1,27 @@
 import os, sys
 import ast
-from this import d
 import astunparse
 import json
+from collections import defaultdict
+from .scope import ScopeManager
 from .factgen import FactManager
+
+# definition of phi function, for the convience of type checking
+phi_def_code = '''
+def __phi__(phi_0, phi_1):
+    if phi_0:
+        return phi_0 
+    return phi_1
+
+'''
 
 
 class CodeTransformer(ast.NodeTransformer):
     def __init__(self) -> None:
         super().__init__()
         self.FManager = FactManager()
-        self.name_map = {}
+        self.scopeManager = ScopeManager()
         self.unchanged_nodeclasses = [ast.Global, ast.Nonlocal, ast.Pass, ast.Break, ast.Continue, ast.Import, ast.ImportFrom, ast.alias]
-        self.ctx = ['main']
 
     def visit(self, node):
         """Visit a node."""
@@ -22,13 +31,18 @@ class CodeTransformer(ast.NodeTransformer):
 
     def generic_visit(self, node):
         rets = ast.NodeTransformer.generic_visit(self, node)
-        if type(node) not in self.unchanged_nodeclasses + [ast.Module, ast.Expr]:
+        if type(node) not in self.unchanged_nodeclasses + [ast.Expr]:
             print(type(node))
             assert False
         return rets
 
+    def visit_Module(self, node):
+        phi_tree = ast.parse(phi_def_code)
+        node.body = phi_tree.body + self.visit_Body(node.body)
+        return node
+
     def visit_Body(self, body):
-        self.ctx.append(self.FManager.get_new_ctx())
+        self.scopeManager.enterBlock()
         if isinstance(body, list):
             new_values = []
             for value in body:
@@ -41,17 +55,20 @@ class CodeTransformer(ast.NodeTransformer):
                         continue
                 new_values.append(value)
             body[:] = new_values
-        self.ctx.pop()
+        self.scopeManager.leaveBlock()
         return body
 
     def visit_ClassDef(self, node):
+        self.scopeManager.enterNamedBlock(node.name)
         node.body = self.visit_Body(node.body)
+        self.scopeManager.leaveNamedBlock()
         return node
 
     def visit_FunctionDef(self, node):
-        # renaming args [TODO]
-        # for arg in node.args.args:
+        self.scopeManager.enterNamedBlock(node.name)
+        self.scopeManager.build_arg_map(node.args)
         node.body = self.visit_Body(node.body)
+        self.scopeManager.leaveNamedBlock()
         return node
 
     def visit_AsyncFunctionDef(self, node):
@@ -80,25 +97,58 @@ class CodeTransformer(ast.NodeTransformer):
         return nodes1 + [node]
 
     def visit_For(self, node):
-        nodes, new_iter = self.visitNameOnly(node.iter)
-        node.iter = new_iter
+        nodes, node.iter = self.visitNameOnly(node.iter)
+
+        def visit_Iter(target, iter_id):
+            for i, x in enumerate(target.elts):
+                if type(x) == ast.Name:
+                    self.visit_Name(x, assigned=True)
+                elif type(x) in [ast.Tuple, ast.List]:
+                    visit_Iter(x, iter_id)
+                else:
+                    assert 0
+
+        if type(node.target) == ast.Name:
+            self.visit_Name(node.target, assigned=True)
+        elif type(node.target) in [ast.Tuple, ast.List]:
+            visit_Iter(node.target, node.iter.id)
+        else:
+            assert 0
+        
+        ctx1 = self.scopeManager.get_tmp_new_ctx()
         node.body = self.visit_Body(node.body)
+
+        ctx2 = self.scopeManager.get_tmp_new_ctx()
         node.orelse = self.visit_Body(node.orelse)
-        return nodes, node
+
+        inits, phi_calls = self.scopeManager.resolve_upates(ctx1, ctx2, self.scopeManager.ctx)
+        return nodes + inits + [node] + phi_calls
 
     def visit_While(self, node):
-        nodes, new_test = self.visitNameOnly(node.test)
-        node.iter = new_test
+        nodes, node.iter = self.visitNameOnly(node.test)
+
+        ctx1 = self.scopeManager.get_tmp_new_ctx()
         node.body = self.visit_Body(node.body)
+
+        ctx2 = self.scopeManager.get_tmp_new_ctx()
         node.orelse = self.visit_Body(node.orelse)
-        return nodes, node
+
+        inits, phi_calls = self.scopeManager.resolve_upates(ctx1, ctx2, self.scopeManager.ctx)
+
+        return nodes + inits + [node] + phi_calls
 
     def visit_If(self, node):
-        nodes, new_test = self.visitNameOnly(node.test)
-        node.test = new_test
+        nodes, node.test = self.visitNameOnly(node.test)
+        
+        ctx1 = self.scopeManager.get_tmp_new_ctx()
         node.body = self.visit_Body(node.body)
+        
+        ctx2 = self.scopeManager.get_tmp_new_ctx()
         node.orelse = self.visit_Body(node.orelse)
-        return nodes, node
+
+        inits, phi_calls = self.scopeManager.resolve_upates(ctx1, ctx2, self.scopeManager.ctx)
+
+        return nodes + inits + [node] + phi_calls
 
     def visit_IfExp(self, node):
         nodes, new_test = self.visitNameOnly(node.test)
@@ -293,7 +343,7 @@ class CodeTransformer(ast.NodeTransformer):
         nodes = []
         nodes1, base = self.visit(node.func)
         nodes2, args = self.visit_arguments(node.args)
-        nodes3, kws = self.visit_keywords(node.keywords)
+        nodes3, kws = self.visit_keywords(node.keywords, node.func)
         return nodes + nodes1 + nodes2 + nodes3, ast.Call(base, args, kws)
 
 
@@ -311,13 +361,14 @@ class CodeTransformer(ast.NodeTransformer):
             arg_names.append(new_arg)
         return nodes, arg_names
 
-    def visit_keywords(self, keywords):
+    def visit_keywords(self, keywords, func_node):
         nodes = []
         kws = []
         for keyword in keywords:
             nodes1, new_v = self.visitNameOnly(keyword.value)
             nodes += nodes1
-            kws.append(ast.keyword(arg = keyword.arg, value = new_v))
+            new_arg = self.scopeManager.get_mapped_arg(func_node, keyword.arg)
+            kws.append(ast.keyword(arg = new_arg, value = new_v))
         return nodes, kws
 
     def visitNameOnly(self, node):
@@ -342,44 +393,7 @@ class CodeTransformer(ast.NodeTransformer):
         return nodes, newNode
 
     def visit_Name(self, node, assigned = False):
-        ctx = [x for x in self.ctx]
-        complete_key = '.'.join(self.ctx + [node.id])
-        while True:
-            # first appearance
-            if ctx == []:
-                self.name_map[complete_key] = node.id
-                return [], ast.Name(self.name_map[complete_key])
-            key = '.'.join(ctx + [node.id])
-            # appeared before
-            if key in self.name_map:
-                # update when assigned
-                if assigned:
-                    # new locals
-                    if key != complete_key:
-                        self.name_map[complete_key] = self.name_map[key]
-                        key = complete_key
-                    old_id = self.name_map[key]
-                    try:
-                        num = int(old_id.split("$")[-1])
-                        self.name_map[key] = node.id + '$' + str(num + 1)
-                    except ValueError:
-                        self.name_map[key] = node.id + '$0'
-                return [], ast.Name(self.name_map[key].replace('$', '_'))
-            ctx.pop()
-
-        # key = '.'.join(self.ctx + [node.id])
-        # if key not in self.name_map:
-        #     self.name_map[key] = node.id
-        #     return [], ast.Name(self.name_map[key])
-        # if assigned:
-        #     old_id = self.name_map[key]
-        #     try:
-        #         num = int(old_id.split("$")[-1])
-        #         self.name_map[key] = node.id + '$' + str(num + 1)
-        #     except ValueError:
-        #         self.name_map[key] = node.id + '$0'
-        #     # nodes += self.visit_Assign(ast.Assign([ast.Name(self.name_map[node.id])], ast.Name(old_id)))
-        # return [], ast.Name(self.name_map[key].replace('$', '_'))
+        return [], ast.Name(self.scopeManager.getName(node.id, assigned))
 
     def visit_Constant(self, node):
         return [], node
