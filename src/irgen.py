@@ -127,7 +127,7 @@ class CodeTransformer(ast.NodeTransformer):
         return nodes + inits + [node] + phi_calls
 
     def visit_While(self, node):
-        nodes, node.iter = self.visitNameOnly(node.test)
+        nodes, node.test = self.visitNameOnly(node.test)
 
         ctx1 = self.scopeManager.get_tmp_new_ctx()
         node.body = self.visit_Body(node.body)
