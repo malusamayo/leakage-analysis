@@ -163,6 +163,7 @@ class CodeTransformer(ast.NodeTransformer):
         node.handlers = self.visit_Body(node.handlers)
         node.orelse = self.visit_Body(node.orelse)
         node.finalbody = self.visit_Body(node.finalbody)
+        # phi function here [TODO]
         return [], node
 
     def visit_ExceptHandler(self, node):
@@ -170,9 +171,16 @@ class CodeTransformer(ast.NodeTransformer):
         return [], node
 
     def visit_With(self, node):
-        # node.items stay the same (for now)
-        node.body = self.visit_Body(node.body)
-        return [], node
+        # rough translation, not accurate
+        nodes = []
+        for item in node.items:
+            if item.optional_vars:
+                nodes += self.visit(ast.Assign([item.optional_vars], item.context_expr))
+            else:
+                nodes1, node = self.visit(item.context_expr)
+                nodes += nodes1 + [node]
+        nodes += self.visit_Body(node.body)
+        return nodes
 
     # ignore pattern matching for now
 
