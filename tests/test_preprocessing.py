@@ -56,6 +56,7 @@ def test_scaler():
 
 def test_pca():
     template("nb_205857.py", ["KMeans.fit", "RandomForestClassifier.fit", "Unknown.fit"])
+    template("nb_471253.py", [])
 
 def test_countvec():
     template("nb_303674.py", [ "Unknown.fit"])
@@ -75,3 +76,6 @@ def test_equiv_edge():
 
 def test_loop():
     template("nb_248151.py", ["Unknown.fit"]) 
+
+def test_classdef():
+    template("nb_424904.py", []) 
