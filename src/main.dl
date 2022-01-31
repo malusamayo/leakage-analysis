@@ -131,13 +131,14 @@ ParamToRetTaintSourceMethod(0, 0, ".*[.]DataFrame.groupby", "rowset").
 ParamToParamTaintSourceMethod(0, 1, meth, "rowset"),
 ParamToRetTaintSourceMethod(0, 1, meth, "rowset") :-
     CallGraphEdge(_, meth),
-    match("(CountVectorizer|TfidfTransformer|TfidfVectorizer|StandardScaler|MinMaxScaler|PCA|SelectPercentile)[.]fit_transform", meth). 
+    match("(CountVectorizer|TfidfTransformer|TfidfVectorizer|StandardScaler|MinMaxScaler|PCA|SelectPercentile|SimpleImputer)[.]fit_transform", meth). 
 ParamToRetTaintSourceMethod(0, 1, "sklearn.preprocessing.scale", "rowset"). 
 // sklearn.preprocessing.normalize when axis = 1
 
-ParamToParamTaintSourceMethod(0, 1, meth, "rowset") :-
+ParamToParamTaintSourceMethod(0, 1, meth, "rowset"),
+ParamToRetTaintSourceMethod(0, 1, meth, "rowset")  :-
     CallGraphEdge(_, meth),
-    match("(CountVectorizer|TfidfTransformer|TfidfVectorizer|StandardScaler|MinMaxScaler|PCA|SelectPercentile)[.]fit", meth). 
+    match("(CountVectorizer|TfidfTransformer|TfidfVectorizer|StandardScaler|MinMaxScaler|PCA|SelectPercentile|SimpleImputer)[.]fit", meth). 
 // ParamToParamTaintSourceMethod(0, 1, "PCA.fit", "rowset"). 
 // ParamToParamTaintSourceMethod(0, 1, "SelectPercentile.fit", "rowset").
 // ParamToParamTaintSourceMethod(0, 1, "CountVectorizer.fit", "rowset"). 
@@ -203,7 +204,8 @@ TestDataByKey(meth, 0, "x") :-
 // ---- pointer analysis ----
 
 .decl VarPointsTo(var:Var, value:Value)
-// .decl FieldPointsTo(base:Value, field:Field, value:Value)
+.decl IndexContentPointsTo(baseValue:Value, value:Value)
+.decl FieldPointsTo(base:Value, field:Field, value:Value)
 .decl InterProcAssign(to:Var, from:Var)
 
 // .decl TaintSource(taintValue:Value, srcValue:Value, taintType:symbol)
@@ -218,24 +220,29 @@ VarPointsTo(to, value) :-
     VarPointsTo(from, value).
 VarPointsTo(to, value) :- 
     LoadIndex(to, base, _),
-    VarPointsTo(base, value).
-VarPointsTo(base, value) :- 
+    VarPointsTo(base, value). 
+VarPointsTo(to, value) :- 
+    LoadIndex(to, base, _),
+    VarPointsTo(base, baseValue),
+    IndexContentPointsTo(baseValue, value).    
+IndexContentPointsTo(baseValue, value) :- 
     StoreIndex(base, _, from),
+    VarPointsTo(base, baseValue),
     VarPointsTo(from, value).
 VarPointsTo(to, value) :- 
     LoadField(to, base, _),
     VarPointsTo(base, value).
-VarPointsTo(base, value) :- 
-    StoreField(base, _, from),
-    VarPointsTo(from, value).
-// VarPointsTo(to, value) :- 
-//     LoadField(to, base, fld),
-//     VarPointsTo(base, baseValue),
-//     FieldPointsTo(baseValue, fld, value).
-// FieldPointsTo(baseValue, fld, value) :-
-//     StoreField(base, fld, from),
-//     VarPointsTo(base, baseValue),
+// VarPointsTo(base, value) :- 
+//     StoreField(base, _, from),
 //     VarPointsTo(from, value).
+VarPointsTo(to, value) :- 
+    LoadField(to, base, fld),
+    VarPointsTo(base, baseValue),
+    FieldPointsTo(baseValue, fld, value).
+FieldPointsTo(baseValue, fld, value) :-
+    StoreField(base, fld, from),
+    VarPointsTo(base, baseValue),
+    VarPointsTo(from, value).
 
 VarPointsTo(to, value) :- 
     LoadSlice(to, from, _, _, _),
@@ -348,6 +355,18 @@ FlowFromExtended(to, from, tag) :-
 FlowFromExtended(to, from, "equiv"),
 FlowFromExtended(to, from, "normal") :-
     VarPointsTo(to, value),
+    VarPointsTo(from, value).
+
+FlowFromExtended(to, from, "equiv"),
+FlowFromExtended(to, from, "normal") :-
+    VarPointsTo(to, baseValue),
+    IndexContentPointsTo(baseValue, value),
+    VarPointsTo(from, value).
+
+FlowFromExtended(to, from, "equiv"),
+FlowFromExtended(to, from, "normal") :-
+    VarPointsTo(to, baseValue),
+    FieldPointsTo(baseValue, _, value),
     VarPointsTo(from, value).
 
 FlowFromExtended(to, from, tag) :-
