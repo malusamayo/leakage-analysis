@@ -31,6 +31,7 @@ def test_basic():
     template("test1.py", [])
     template("test2.py", ["LogisticRegression.fit"])
     template("test3.py", [])
+    template("test4.py", [])
 
 def test_fillna():
     template("titanic0.py", ["LogisticRegression.fit"])
