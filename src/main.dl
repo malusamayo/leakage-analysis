@@ -112,21 +112,36 @@ ParamToRetEquivFlow(0, 1, meth) :-
     match(".*[.](transform|fit_transform)", meth).
 
 
-ParamToRetTaintSourceMethod(0, 1, "numpy.mean", "rowset").
-ParamToRetTaintSourceMethod(0, 0, "pandas.Series.mean", "rowset").
-ParamToRetTaintSourceMethod(0, 0, "pandas.DataFrame.mean", "rowset").
+ParamToRetTaintSourceMethod(0, 1, meth, "rowset") :-
+    CallGraphEdge(_, meth),
+    match("numpy[.](nan)?(average|median|mean|std|var)", meth).
 ParamToRetTaintSourceMethod(0, 0, "Unknown.mean", "rowset").
-ParamToRetTaintSourceMethod(0, 1, "CountVectorizer.fit_transform", "rowset").
-ParamToRetTaintSourceMethod(0, 1, "TfidfTransformer.transform", "rowset").
-ParamToRetTaintSourceMethod(0, 1, "TfidfTransformer.fit_transform", "rowset").
-ParamToRetTaintSourceMethod(0, 1, "TfidfVectorizer.fit_transform", "rowset").
-ParamToRetTaintSourceMethod(0, 1, "StandardScaler.fit_transform", "rowset"). 
-ParamToRetTaintSourceMethod(0, 1, "MinMaxScaler.fit_transform",  "rowset"). 
+ParamToRetTaintSourceMethod(0, 1, "pandas.cut", "rowset").
+ParamToRetTaintSourceMethod(0, 1, "pandas.qcut", "rowset").
+ParamToRetTaintSourceMethod(0, 0, meth, "rowset") :-
+    CallGraphEdge(_, meth),
+    match(".*[.](Series|DataFrame)[.](groupby|corr|cov|mode|mean|median|std|sum|describe)", meth). // some of them actually depends on the axis
+ParamToRetTaintSourceMethod(0, 0, ".*[.]DataFrame.groupby", "rowset").
+// ParamToRetTaintSourceMethod(0, 1, "CountVectorizer.fit_transform", "rowset").
+// ParamToRetTaintSourceMethod(0, 1, "TfidfTransformer.fit_transform", "rowset").
+// ParamToRetTaintSourceMethod(0, 1, "TfidfVectorizer.fit_transform", "rowset").
+// ParamToRetTaintSourceMethod(0, 1, "StandardScaler.fit_transform", "rowset"). 
+// ParamToRetTaintSourceMethod(0, 1, "MinMaxScaler.fit_transform",  "rowset").
+// ParamToRetTaintSourceMethod(0, 1, "PCA.fit_transform", "rowset").  
+ParamToParamTaintSourceMethod(0, 1, meth, "rowset"),
+ParamToRetTaintSourceMethod(0, 1, meth, "rowset") :-
+    CallGraphEdge(_, meth),
+    match("(CountVectorizer|TfidfTransformer|TfidfVectorizer|StandardScaler|MinMaxScaler|PCA|SelectPercentile)[.]fit_transform", meth). 
 ParamToRetTaintSourceMethod(0, 1, "sklearn.preprocessing.scale", "rowset"). 
+// sklearn.preprocessing.normalize when axis = 1
 
-ParamToParamTaintSourceMethod(0, 1, "PCA.fit", "rowset"). 
-ParamToParamTaintSourceMethod(0, 1, "SelectPercentile.fit", "rowset"). 
-
+ParamToParamTaintSourceMethod(0, 1, meth, "rowset") :-
+    CallGraphEdge(_, meth),
+    match("(CountVectorizer|TfidfTransformer|TfidfVectorizer|StandardScaler|MinMaxScaler|PCA|SelectPercentile)[.]fit", meth). 
+// ParamToParamTaintSourceMethod(0, 1, "PCA.fit", "rowset"). 
+// ParamToParamTaintSourceMethod(0, 1, "SelectPercentile.fit", "rowset").
+// ParamToParamTaintSourceMethod(0, 1, "CountVectorizer.fit", "rowset"). 
+// ParamToParamTaintSourceMethod(0, 1, "TfidfTransformer.fit", "rowset"). 
 
 RetTaintSourceMethod(0, "sklearn.preprocessing.Imputer", "pipeline"). // not always a problem, be conservative
 RetTaintSourceMethod(0, "sklearn.preprocessing.MinMaxScaler", "pipeline"). 
@@ -134,6 +149,9 @@ RetTaintSourceMethod(0, "sklearn.preprocessing.MinMaxScaler", "pipeline").
 ParamToRetCondTaintSourceMethod(0, 1, 4027, "DataFrameMapper.fit_transform", "rowset"). 
 ParamToRetCondTaintSourceMethod(0, 1, 4027, "Pipeline.fit_transform",  "rowset").
 TaintCondition(4027, 0, "pipeline").
+
+ParamToRetTaintSourceMethod(0, 1, "ImageDataGenerator.flow", "dup"). 
+
 
 TrainingData(meth, 0, 1) :-
     CallGraphEdge(_, meth),
@@ -313,8 +331,22 @@ FlowFrom(to, from, tag) :-
 FlowFromExtended(to, from, tag) :-
     FlowFrom(to, from, tag).
 
+// .decl Alias(a:Var, b:Var)
+// .decl AliasFilter(a:Var, b:Var)
+
+
+// Alias(to, from) :-
+//     VarPointsTo(to, value),
+//     VarPointsTo(from, value),
+//     !AliasFilter(to, from).
+
+// AliasFilter(from, to) :-
+//     VarPointsTo(to, value),
+//     VarPointsTo(from, _),
+//     !VarPointsTo(from, value).
+
 FlowFromExtended(to, from, "equiv"),
-FlowFromExtended(to, from, "normal") :-  
+FlowFromExtended(to, from, "normal") :-
     VarPointsTo(to, value),
     VarPointsTo(from, value).
 
@@ -359,8 +391,7 @@ Leak(var, invo, meth) :-
     PreProcessingLeak(var, invo, meth);
     OverlapLeak(_, var, invo, meth).
 
-
-// pre-processing leaks
+// General edges/taints
 .decl TaintStarts(var:Var, label:symbol)
 .decl TaintStartsTarget(var:Var, target:Var, label:symbol)
 .decl TaintedVar(var:Var)
@@ -387,18 +418,27 @@ TaintedVar(to) :-
     TaintedVar(from).
 
 
+// pre-processing leaks
+.decl ReduceEdge(to:Var, from:Var)
+
+ReduceEdge(to, from) :-
+    TaintStartsTarget(from, to, "rowset").
+
 PreProcessingLeak(src, invo, meth) :-
     TrainTestPair(trainModel, train, testModel, test),
     TrainingDataWithModel(trainModel, train, invo, meth),
     TestDataWithModel(testModel, test, _, _),
-    TaintStartsTarget(src, target_var, "rowset"),
-    FlowFromExtended(train, target_var, _),
+    ReduceEdge(to, src),
+    FlowFromExtended(train, to, _),
     (FlowFromExtended(test, src, _);
     FlowFromExtended(test, src_equiv, _), FlowFromExtended(src, src_equiv, "equiv")).
 
 // Overlap detection
 .decl DataOverlap(train:Var, test:Var)
 .decl DuplicateEdge(to:Var, from:Var)
+
+DuplicateEdge(to, from) :-
+    TaintStartsTarget(from, to, "dup").
 
 DataOverlap(train, test) :- // split with slicing will be recognized as overlaps
     (FlowFromExtended(train, test, _);
@@ -436,9 +476,13 @@ NoTestData(trainModel, invo, meth) :-
     TrainingDataWithModel(trainModel, train, invo, meth),
     !TrainTestPair(trainModel, train, _, _).
 
+// [TODO] separate validation/test, detect test multi-use
+
 .output TrainTestPair
 .output FlowFromEdge
 .output FlowFrom
+.output FlowFromExtended
+.output TaintStartsTarget
 .output TaintedVar
 .output VarPointsTo
 .output DataOverlap
