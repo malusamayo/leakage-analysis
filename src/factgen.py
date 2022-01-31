@@ -34,7 +34,9 @@ class FactManager(object):
             "ActualReturn": [],
             "FormalReturn": [],
             # "MethodUpdate": [],
-            "Alloc": []
+            "Alloc": [],
+            "LocalMethod": [],
+            "LocalClass": []
         }
 
 
@@ -121,8 +123,16 @@ class FactGenerator(ast.NodeVisitor):
             self.import_map[name.name] = '.'.join([node.module, name.name])
         return ast.NodeTransformer.generic_visit(self, node)
 
+    def visit_ClassDef(self, node):
+        self.scope_stack.append(node.name)
+        self.FManager.add_fact("LocalClass", (node.name,))
+        ret = ast.NodeTransformer.generic_visit(self, node)
+        self.scope_stack.pop()
+        return ret
+
     def visit_FunctionDef(self, node, inClass=False):
         self.scope_stack.append(node.name)
+        self.FManager.add_fact("LocalMethod", (node.name,))
         for i, arg in enumerate(node.args.args):
             self.FManager.add_fact("FormalParam", (i+1, node.name, arg.arg))
         ret = ast.NodeTransformer.generic_visit(self, node)

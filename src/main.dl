@@ -33,6 +33,8 @@
 // .decl MethodUpdate(meth:Method, index:number)
 .decl VarType(var:Var, type:Type)
 .decl Alloc(var:Var, value:Value)
+.decl LocalMethod(meth:Method)
+.decl LocalClass(cls:Type)
 
 .input AssignVar
 .input AssignStrConstant
@@ -54,6 +56,8 @@
 .input CallGraphEdge
 .input VarType
 .input Alloc
+.input LocalMethod
+.input LocalClass
 
 
 // train/test locations
@@ -120,7 +124,7 @@ ParamToRetTaintSourceMethod(0, 1, "pandas.cut", "rowset").
 ParamToRetTaintSourceMethod(0, 1, "pandas.qcut", "rowset").
 ParamToRetTaintSourceMethod(0, 0, meth, "rowset") :-
     CallGraphEdge(_, meth),
-    match(".*[.](Series|DataFrame)[.](groupby|corr|cov|mode|mean|median|std|sum|describe)", meth). // some of them actually depends on the axis
+    match(".*(Series|DataFrame|FrameOrSeries)[.](groupby|corr|cov|mode|mean|median|std|sum|describe)", meth). // some of them actually depends on the axis
 ParamToRetTaintSourceMethod(0, 0, ".*[.]DataFrame.groupby", "rowset").
 // ParamToRetTaintSourceMethod(0, 1, "CountVectorizer.fit_transform", "rowset").
 // ParamToRetTaintSourceMethod(0, 1, "TfidfTransformer.fit_transform", "rowset").
@@ -297,9 +301,10 @@ VarPointsTo(to, value) :-
 .decl ParamToRetEquivFlow(to:number, from:number, method:Method) 
 
 FlowFromEdge(to, from, "normal") :-
-    CallGraphEdge(invo, _),
+    CallGraphEdge(invo, meth),
     (ActualParam(_, invo, from); ActualKeyParam(_, invo, from)),
-    ActualReturn(_, invo, to).
+    ActualReturn(_, invo, to),
+    !LocalMethod(meth).
 
 FlowFromEdge(to, from, "normal") :-
     CallGraphEdge(invo, meth),
