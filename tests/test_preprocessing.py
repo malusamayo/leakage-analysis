@@ -54,6 +54,7 @@ def test_scaler():
     template("nb_273933.py", ["Unknown.fit"]) # , "KNeighborsClassifier.fit"]) [context-insensitivity]
     template("nb_362989.py", ["SGDClassifier.fit", "GaussianNB.fit"])
     template("nb_292583.py", ["Unknown.fit", "GridSearchCV.fit", "AdaBoostClassifier.fit", "Any | Unknown | type.fit"])
+    template("nb_473437.py", [])
 
 def test_pca():
     template("nb_205857.py", ["KMeans.fit", "RandomForestClassifier.fit", "Unknown.fit"])
@@ -80,3 +81,6 @@ def test_loop():
 
 def test_classdef():
     template("nb_424904.py", []) 
+
+def test_funcdef():
+    template("nb_481597.py", ["RandomForestRegressor.fit"]) 
