@@ -61,7 +61,8 @@ def test_pca():
     template("nb_471253.py", [])
 
 def test_countvec():
-    template("nb_303674.py", [ "Unknown.fit"])
+    template("nb_303674.py", ["Unknown.fit"])
+    template("nb_1020535.py", [])
 
 def test_pipeline():
     template("nb_276778.py", ["RandomizedSearchCV.fit"])
@@ -84,3 +85,10 @@ def test_classdef():
 
 def test_funcdef():
     template("nb_481597.py", ["RandomForestRegressor.fit"]) 
+
+def test_branch():
+    template("nb_1080148.py", ["Unknown.fit"]) 
+
+def test_cut():
+    template("nb_1090319.py", ["Unknown.fit", "LogisticRegression.fit"]) 
+    template("nb_1255091.py", ["DecisionTreeClassifier.fit", "KNeighborsClassifier.fit", 'RandomForestClassifier.fit'])
