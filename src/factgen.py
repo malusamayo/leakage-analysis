@@ -288,8 +288,11 @@ class FactGenerator(ast.NodeVisitor):
                 assert type(node.value) == ast.Name
                 if type(target.slice) == ast.ExtSlice:
                     self.FManager.add_fact("StoreIndex", (target.value.id, "slice_placeholder", node.value.id))
+                elif type(target.slice) == ast.Slice:
+                    slice_ids = [x.id if x else "none" for x in [target.slice.lower, target.slice.upper, target.slice.step]]
+                    self.FManager.add_fact("StoreSlice", (target.value.id, *slice_ids, node.value.id))
                 else:
-                    assert type(target.slice) == ast.Index # Slice not handled yet
+                    assert type(target.slice) == ast.Index
                     assert type(target.slice.value) == ast.Name
                     self.FManager.add_fact("StoreIndex", (target.value.id, target.slice.value.id, node.value.id))
             elif type(target) == ast.Tuple:

@@ -20,6 +20,7 @@
 .decl LoadIndex(to:Var, base:Var, i:Index)
 .decl StoreIndex(base:Var, i:Index, from:Var)
 .decl LoadSlice(to:Var, base:Var, st:Var, ed:Var, step:Var)
+.decl StoreSlice(to:Var, st:Var, ed:Var, step:Var, base:Var)
 
 // inter-procedural facts
 .decl Invoke(invo:Invocation)
@@ -45,6 +46,7 @@
 .input LoadIndex
 .input StoreIndex
 .input LoadSlice
+.input StoreSlice
 
 .input Invoke
 
@@ -276,6 +278,14 @@ FieldPointsTo(baseValue, fld, value) :-
 
 VarPointsTo(to, value) :- 
     LoadSlice(to, from, _, _, _),
+    VarPointsTo(from, value).
+VarPointsTo(to, value) :- 
+    LoadSlice(to, base, _, _, _),
+    VarPointsTo(base, baseValue),
+    IndexContentPointsTo(baseValue, value).  
+IndexContentPointsTo(baseValue, value) :- 
+    StoreSlice(base, _, _, _, from),
+    VarPointsTo(base, baseValue),
     VarPointsTo(from, value).
 
 InterProcAssign(to, from) :-
