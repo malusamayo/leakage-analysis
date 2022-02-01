@@ -119,35 +119,61 @@ ParamToRetEquivFlow(0, 1, meth) :-
 ParamToRetTaintSourceMethod(0, 1, meth, "rowset") :-
     CallGraphEdge(_, meth),
     match("numpy[.](nan)?(average|median|mean|std|var)", meth).
-ParamToRetTaintSourceMethod(0, 0, "Unknown.mean", "rowset").
+// ParamToRetTaintSourceMethod(0, 0, "Unknown.mean", "rowset").
 ParamToRetTaintSourceMethod(0, 1, "pandas.cut", "rowset").
 ParamToRetTaintSourceMethod(0, 1, "pandas.qcut", "rowset").
 ParamToRetTaintSourceMethod(0, 0, meth, "rowset") :-
     CallGraphEdge(_, meth),
-    match(".*(Series|DataFrame|FrameOrSeries)[.](groupby|corr|cov|mode|mean|median|std|sum|describe)", meth). // some of them actually depends on the axis
+    match(".*(Unknown|Series|DataFrame|FrameOrSeries)[.](groupby|corr|cov|mode|mean|median|std|sum|describe)", meth). // some of them actually depends on the axis
 ParamToRetTaintSourceMethod(0, 0, ".*[.]DataFrame.groupby", "rowset").
-// ParamToRetTaintSourceMethod(0, 1, "CountVectorizer.fit_transform", "rowset").
-// ParamToRetTaintSourceMethod(0, 1, "TfidfTransformer.fit_transform", "rowset").
-// ParamToRetTaintSourceMethod(0, 1, "TfidfVectorizer.fit_transform", "rowset").
-// ParamToRetTaintSourceMethod(0, 1, "StandardScaler.fit_transform", "rowset"). 
-// ParamToRetTaintSourceMethod(0, 1, "MinMaxScaler.fit_transform",  "rowset").
-// ParamToRetTaintSourceMethod(0, 1, "PCA.fit_transform", "rowset").  
+ParamToRetTaintSourceMethod(0, 1, "sklearn.preprocessing.scale", "rowset"). 
+// sklearn.preprocessing.normalize when axis = 1
+
+// pre-processing leaks 
 ParamToParamTaintSourceMethod(0, 1, meth, "rowset"),
 ParamToRetTaintSourceMethod(0, 1, meth, "rowset") :-
     CallGraphEdge(_, meth),
-    match("(CountVectorizer|TfidfTransformer|TfidfVectorizer|StandardScaler|MinMaxScaler|PCA|SelectPercentile|SimpleImputer)[.]fit_transform", meth). 
-ParamToRetTaintSourceMethod(0, 1, "sklearn.preprocessing.scale", "rowset"). 
-// sklearn.preprocessing.normalize when axis = 1
+    match("(KBinsDiscretizer|PowerTransformer|QuantileTransformer|MaxAbsScaler|StandardScaler|MinMaxScaler|RobustScaler)[.]fit_transform", meth). 
 
 ParamToParamTaintSourceMethod(0, 1, meth, "rowset"),
 ParamToRetTaintSourceMethod(0, 1, meth, "rowset")  :-
     CallGraphEdge(_, meth),
-    match("(CountVectorizer|TfidfTransformer|TfidfVectorizer|StandardScaler|MinMaxScaler|PCA|SelectPercentile|SimpleImputer)[.]fit", meth). 
-// ParamToParamTaintSourceMethod(0, 1, "PCA.fit", "rowset"). 
-// ParamToParamTaintSourceMethod(0, 1, "SelectPercentile.fit", "rowset").
-// ParamToParamTaintSourceMethod(0, 1, "CountVectorizer.fit", "rowset"). 
-// ParamToParamTaintSourceMethod(0, 1, "TfidfTransformer.fit", "rowset"). 
+    match("(KBinsDiscretizer|PowerTransformer|QuantileTransformer|MaxAbsScaler|StandardScaler|MinMaxScaler|RobustScaler)[.]fit", meth).
 
+// imputer leaks (depends on the strategy)
+ParamToParamTaintSourceMethod(0, 1, meth, "rowset"),
+ParamToRetTaintSourceMethod(0, 1, meth, "rowset") :-
+    CallGraphEdge(_, meth),
+    match("(Imputer|SimpleImputer|IterativeImputer|KNNImputer)[.]fit_transform", meth). 
+
+ParamToParamTaintSourceMethod(0, 1, meth, "rowset"),
+ParamToRetTaintSourceMethod(0, 1, meth, "rowset")  :-
+    CallGraphEdge(_, meth),
+    match("(Imputer|SimpleImputer|IterativeImputer|KNNImputer)[.]fit", meth).
+
+// feature selection leaks
+ParamToParamTaintSourceMethod(0, 1, meth, "rowset"),
+ParamToRetTaintSourceMethod(0, 1, meth, "rowset") :-
+    CallGraphEdge(_, meth),
+    match("(GenericUnivariateSelect|SelectPercentile|SelectKBest|SelectFpr|SelectFdr|SelectFromModel|SelectFwe|SequentialFeatureSelector|RFE|RFECV|VarianceThreshold)[.]fit_transform", meth). 
+
+ParamToParamTaintSourceMethod(0, 1, meth, "rowset"),
+ParamToRetTaintSourceMethod(0, 1, meth, "rowset")  :-
+    CallGraphEdge(_, meth),
+    match("(GenericUnivariateSelect|SelectPercentile|SelectKBest|SelectFpr|SelectFdr|SelectFromModel|SelectFwe|SequentialFeatureSelector|RFE|RFECV|VarianceThreshold)[.]fit", meth). 
+
+// other leaks
+ParamToParamTaintSourceMethod(0, 1, meth, "rowset"),
+ParamToRetTaintSourceMethod(0, 1, meth, "rowset") :-
+    CallGraphEdge(_, meth),
+    match("(CountVectorizer|HashingVectorizer|TfidfTransformer|TfidfVectorizer|PCA)[.]fit_transform", meth). 
+
+ParamToParamTaintSourceMethod(0, 1, meth, "rowset"),
+ParamToRetTaintSourceMethod(0, 1, meth, "rowset")  :-
+    CallGraphEdge(_, meth),
+    match("(CountVectorizer|HashingVectorizer|TfidfTransformer|TfidfVectorizer|PCA)[.]fit", meth).
+
+// pipeline leaks
 RetTaintSourceMethod(0, "sklearn.preprocessing.Imputer", "pipeline"). // not always a problem, be conservative
 RetTaintSourceMethod(0, "sklearn.preprocessing.MinMaxScaler", "pipeline"). 
 
@@ -304,7 +330,7 @@ FlowFromEdge(to, from, "normal") :-
     CallGraphEdge(invo, meth),
     (ActualParam(_, invo, from); ActualKeyParam(_, invo, from)),
     ActualReturn(_, invo, to),
-    !LocalMethod(meth).
+    (!LocalMethod(meth); meth = "__phi__").
 
 FlowFromEdge(to, from, "normal") :-
     CallGraphEdge(invo, meth),
@@ -315,6 +341,10 @@ FlowFromEdge(to, from, "normal") :-
 FlowFromEdge(to, from, "normal") :-
     InterProcAssign(to, from); AssignVar(to, from); LoadIndex(to, from, _); StoreIndex(to, _, from); 
     LoadField(to, from, _); StoreField(to, _, from); LoadSlice(to, from, _, _, _).
+
+FlowFromEdge(to, left, "normal"),
+FlowFromEdge(to, right, "normal") :-
+    AssignBinOp(to, left, _, right).
 
 FlowFromEdge(to, from, "equiv") :-
     InterProcAssign(to, from); AssignVar(to, from).
