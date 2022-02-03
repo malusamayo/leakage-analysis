@@ -194,9 +194,11 @@ class CodeTransformer(ast.NodeTransformer):
         return nodes, ast.Delete(new_vars)
     
     def visit_Raise(self, node):
-        nodes1, new_exec = self.visitNameOnly(node.exec)
+        nodes1, new_exec = [], None
         nodes2, new_cause = [], None
-        if node.msg:
+        if node.exc:
+            nodes1, new_exec = self.visitNameOnly(node.exc)
+        if node.cause:
             nodes2, new_cause = self.visitNameOnly(node.cause)
         return nodes1 + nodes2, ast.Raise(new_exec, new_cause)
 
