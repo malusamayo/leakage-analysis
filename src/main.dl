@@ -23,7 +23,7 @@
 .decl StoreSlice(to:Var, st:Var, ed:Var, step:Var, base:Var)
 
 // inter-procedural facts
-.decl Invoke(invo:Invocation)
+// .decl Invoke(invo:Invocation)
 .decl ActualParam(index:number, invo:Invocation, var:Var)
 .decl FormalParam(index:number, meth:Method, var:Var)
 .decl ActualKeyParam(keyword:Var, invo:Invocation, var:Var)
@@ -36,6 +36,7 @@
 .decl Alloc(var:Var, value:Value)
 .decl LocalMethod(meth:Method)
 .decl LocalClass(cls:Type)
+.decl InvokeInLoop(invo:Invocation)
 
 .input AssignVar
 .input AssignStrConstant
@@ -48,8 +49,6 @@
 .input LoadSlice
 .input StoreSlice
 
-.input Invoke
-
 .input ActualParam
 .input FormalParam
 .input ActualKeyParam
@@ -60,6 +59,7 @@
 .input Alloc
 .input LocalMethod
 .input LocalClass
+.input InvokeInLoop
 
 
 // train/test locations
@@ -423,6 +423,9 @@ FlowFromExtended(to, from, tag) :-
 .decl TestDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
 .decl TrainTestPair(trainModel:Var, train:Var, testModel:Var, test:Var)
 
+.decl ValDataWithModel(model:Var, val:Var, invo:Invocation, meth:Method)
+.decl ValTestPair(trainModel:Var, train:Var, testModel:Var, test:Var)
+
 TrainingDataWithModel(model, train, invo, meth) :-
     (TrainingData(meth, model_idx, idx),
     ActualParam(idx, invo, train);
@@ -437,7 +440,23 @@ TestDataWithModel(model, test, invo, meth) :-
     TestDataByKey(meth, model_idx, keyword),
     ActualKeyParam(keyword, invo, test)),
     CallGraphEdge(invo, meth),
+    !InvokeInLoop(invo), // and there should be no flow between test and val! [TODO]
     ActualParam(model_idx, invo, model).
+
+ValDataWithModel(model, val, invo, meth) :-
+    (TestData(meth, model_idx, idx),
+    ActualParam(idx, invo, val);
+    TestDataByKey(meth, model_idx, keyword),
+    ActualKeyParam(keyword, invo, val)),
+    CallGraphEdge(invo, meth),
+    InvokeInLoop(invo),
+    ActualParam(model_idx, invo, model).
+
+ValTestPair(valModel, val, testModel, test) :-
+    TestDataWithModel(testModel, test, _, _),
+    ValDataWithModel(valModel, val, _, _),
+    (val = test; FlowFrom(test, val, _); FlowFrom(val, test, _)),
+    (valModel = testModel; FlowFromExtended(testModel, valModel, _)).
 
 TrainTestPair(trainModel, train, testModel, test) :-
     TestDataWithModel(testModel, test, _, _),
@@ -540,9 +559,18 @@ NoTestData(trainModel, invo, meth) :-
     TrainingDataWithModel(trainModel, train, invo, meth),
     !TrainTestPair(trainModel, train, _, _).
 
+.decl MultiUseTestLeak(test:Var, invo:Invocation, meth:Method)
+MultiUseTestLeak(test, invo, meth) :-
+    TestDataWithModel(testModel, test, invo, meth),
+    TestDataWithModel(testModel2, test2, invo2, meth2),
+    invo != invo2,
+    DataOverlap(test, test2),
+    DataOverlap(testModel2, testModel). // we should distinguish related/unrelated models?
+
 // [TODO] separate validation/test, detect test multi-use
 
 .output TrainTestPair
+.output ValDataWithModel
 .output FlowFromEdge
 .output FlowFrom
 .output FlowFromExtended
@@ -553,3 +581,4 @@ NoTestData(trainModel, invo, meth) :-
 .output PreProcessingLeak
 .output OverlapLeak
 .output NoTestData
+.output MultiUseTestLeak
