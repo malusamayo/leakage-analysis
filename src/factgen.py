@@ -2,6 +2,7 @@ import os, sys
 import ast
 import astunparse
 import json
+from collections import defaultdict
 
 class FactManager(object):
 
@@ -36,7 +37,8 @@ class FactManager(object):
             # "MethodUpdate": [],
             "Alloc": [],
             "LocalMethod": [],
-            "LocalClass": []
+            "LocalClass": [],
+            "InvokeInLoop": []
         }
 
 
@@ -102,8 +104,11 @@ class FactGenerator(ast.NodeVisitor):
             ast.ListComp: self.FManager.get_new_list,
             ast.DictComp: self.FManager.get_new_dict,
         }
-        self.scope_stack = []
+        self.scope_stack = ["module"]
         self.import_map = {}
+        self.meth2invokes = defaultdict(list)
+        self.meth_in_loop = set()
+        self.in_loop = False
     
     def load_type_map(self, json_path):
         with open(json_path) as f:
@@ -113,6 +118,21 @@ class FactGenerator(ast.NodeVisitor):
         if key in self.import_map:
             return self.import_map[key]
         return key
+
+    def get_cur_sig(self):
+        if self.scope_stack[-1] == "__init__":
+            return '.'.join(self.scope_stack[1:-1])
+        return '.'.join(self.scope_stack[1:])
+
+    def mark_loopcalls(self):
+        for meth_name in self.meth_in_loop:
+            for invo in self.meth2invokes[meth_name]:
+                self.FManager.add_fact("InvokeInLoop", (invo,))
+
+    def visit_Module(self, node) :
+        ret = ast.NodeTransformer.generic_visit(self, node)
+        self.mark_loopcalls()
+        return ret
 
     def visit_Import(self,node):
         return ast.NodeTransformer.generic_visit(self, node)
@@ -133,8 +153,15 @@ class FactGenerator(ast.NodeVisitor):
     def visit_FunctionDef(self, node, inClass=False):
         self.scope_stack.append(node.name)
         self.FManager.add_fact("LocalMethod", (node.name,))
+        if len(self.scope_stack) > 2:
+            self.FManager.add_fact("LocalMethod", ('.'.join(self.scope_stack[1:]),))
         for i, arg in enumerate(node.args.args):
             self.FManager.add_fact("FormalParam", (i+1, node.name, arg.arg))
+            if len(self.scope_stack) > 2:
+                meth = '.'.join(self.scope_stack[1:])
+                if node.name == "__init__":
+                    meth = '.'.join(self.scope_stack[1:-1])
+                self.FManager.add_fact("FormalParam", (i+1, meth, arg.arg))
         ret = ast.NodeTransformer.generic_visit(self, node)
         self.scope_stack.pop()
         return ret
@@ -157,7 +184,10 @@ class FactGenerator(ast.NodeVisitor):
             visit_Iter(node.target, node.iter.id)
         else:
             assert 0
-        return ast.NodeTransformer.generic_visit(self, node)
+        self.in_loop = True
+        ret = ast.NodeTransformer.generic_visit(self, node)
+        self.in_loop = False
+        return ret
     
     def visit_Return(self, node, inClass=False):
         if type(node.value) == ast.Name:
@@ -309,18 +339,28 @@ class FactGenerator(ast.NodeVisitor):
         return node
     
 
+    def add_loop_facts(self, cur_invo, meth_name):
+        self.FManager.add_fact("InvokeInLoop", (cur_invo,))
+        self.meth_in_loop.add(meth_name)
+
     def visit_Call(self, node):
         cur_invo = self.FManager.get_new_invo()
+        self.meth2invokes[self.get_cur_sig()].append(cur_invo)
         if type(node.func) == ast.Attribute:
             hasInnerCall = self.visit_Attribute(node.func, cur_invo=cur_invo)
             if hasInnerCall:
                 new_invo = self.FManager.get_new_invo()
                 assert type(node.args[0]) == ast.Name
+                self.meth2invokes[self.get_cur_sig()].append(new_invo)
                 self.FManager.add_fact("CallGraphEdge", (new_invo, node.args[0].id))
+                if self.in_loop:
+                    self.add_loop_facts(new_invo, node.args[0].id)
                 self.FManager.add_fact("ActualParam", (1, new_invo, node.func.value.id))
                 self.FManager.add_fact("ActualReturn", (0, new_invo, node.func.value.id))
         elif type(node.func) == ast.Name:
             self.FManager.add_fact("CallGraphEdge", (cur_invo, node.func.id))
+            if self.in_loop:
+                self.add_loop_facts(cur_invo, node.func.id)
         else:
             print("Impossible!")
         self.visit_arguments(node.args, cur_invo=cur_invo)
@@ -332,10 +372,12 @@ class FactGenerator(ast.NodeVisitor):
         assert type(node.value) == ast.Name
         if cur_invo:
             value_type = self.type_map[node.value.id]
-            method_sig = ".".join([value_type[1], node.attr])
+            method_sig = ".".join([value_type[1].replace('Self@', ''), node.attr])
             if value_type[0] == "var":
                 self.FManager.add_fact("ActualParam", (0, cur_invo, node.value.id))
             self.FManager.add_fact("CallGraphEdge", (cur_invo, method_sig))
+            if self.in_loop:
+                self.add_loop_facts(cur_invo, method_sig)
             if method_sig in ["pandas.Series.map", "pandas.Series.apply", "pandas.DataFrame.apply", "FrameOrSeries.apply",  "pandas.DataFrame.applymap"]:
                 return True
 
@@ -353,4 +395,24 @@ class FactGenerator(ast.NodeVisitor):
             self.FManager.add_fact("ActualKeyParam", (keyword.arg, cur_invo, keyword.value.id))
         return keywords
 
+    # keep exprs below unchanged (for now)
+    def visit_ListComp(self, node):
+        return [], node
 
+    def visit_SetComp(self, node):
+        return [], node
+
+    def visit_DictComp(self, node):
+        return [], node
+
+    def visit_GeneratorExp(self, node):
+        return [], node
+
+    def visit_comprehension(self, node):
+        return [], node
+
+    def visit_FormattedValue(self, node):
+        return [], node
+
+    def visit_JoinedStr(self, node):
+        return [], node
