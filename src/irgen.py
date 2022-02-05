@@ -177,8 +177,8 @@ class CodeTransformer(ast.NodeTransformer):
             if item.optional_vars:
                 nodes += self.visit(ast.Assign([item.optional_vars], item.context_expr))
             else:
-                nodes1, node = self.visit(item.context_expr)
-                nodes += nodes1 + [node]
+                nodes1, new_node = self.visit(item.context_expr)
+                nodes += nodes1 + [new_node]
         nodes += self.visit_Body(node.body)
         return nodes
 
