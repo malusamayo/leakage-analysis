@@ -67,6 +67,11 @@
 .decl TrainingDataByKey(method:Method, model_idx:number, datakw:Var)
 .decl TestData(method:Method, model_idx:number, data_index:number)
 .decl TestDataByKey(method:Method, model_idx:number, datakw:Var)
+.decl ValData(method:Method, model_idx:number, data_index:number)
+.decl ValDataByKey(method:Method, model_idx:number, datakw:Var)
+.decl ScoredData(method:Method, model_idx:number, data_index:number)
+.decl ScoredResult(method:Method, result_index:number)
+.decl FilteredTrainingMethod(method:Method)
 
 // taint analysis input relations
 .decl ParamToRetTaintSourceMethod(to:number, from:number, method:Method, taintType:symbol)
@@ -202,6 +207,29 @@ TestDataByKey(meth, 0, "x") :-
     CallGraphEdge(_, meth),
     match(".*[.](predict_proba)", meth).
 
+ValData(meth, 0, 1) :-
+    CallGraphEdge(_, meth),
+    match(".*(GridSearchCV|HalvingGridSearchCV|ParameterGrid|ParameterSampler|RandomizedSearchCV|HalvingRandomSearchCV)[.]fit", meth).
+
+ValDataByKey(meth, 0, "validation_data") :-
+    CallGraphEdge(_, meth),
+    match(".*[.]fit_generator", meth).
+
+ScoredData(meth, 0, 1) :-
+    CallGraphEdge(_, meth),
+    match(".*[.](score|evaluate)", meth).
+
+ScoredResult(meth, 1) :-
+    CallGraphEdge(_, meth),
+    match(".*_(score|loss)", meth).
+
+FilteredTrainingMethod(meth) :-
+    CallGraphEdge(_, meth),
+    (match("(GenericUnivariateSelect|SelectPercentile|SelectKBest|SelectFpr|SelectFdr|SelectFromModel|SelectFwe|SequentialFeatureSelector|RFE|RFECV|VarianceThreshold)[.]fit", meth);
+    match("(CountVectorizer|HashingVectorizer|TfidfTransformer|TfidfVectorizer|PCA)[.]fit", meth);
+    match("(Imputer|SimpleImputer|IterativeImputer|KNNImputer)[.]fit", meth);
+    match("(KBinsDiscretizer|PowerTransformer|QuantileTransformer|MaxAbsScaler|StandardScaler|MinMaxScaler|RobustScaler)[.]fit", meth)).
+ 
 // TrainingData("LogisticRegression.fit", 0, 1).
 // TrainingData("GaussianNB.fit", 0, 1).
 // TrainingData("Unknown.fit", 0, 1).
@@ -421,6 +449,7 @@ FlowFromExtended(to, from, tag) :-
 // ---- derived training/test data rules ----
 .decl TrainingDataWithModel(model:Var, train:Var, invo:Invocation, meth:Method)
 .decl TestDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
+.decl ScoredTestDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
 .decl TrainTestPair(trainModel:Var, train:Var, testModel:Var, test:Var)
 
 .decl ValDataWithModel(model:Var, val:Var, invo:Invocation, meth:Method)
@@ -432,6 +461,7 @@ TrainingDataWithModel(model, train, invo, meth) :-
     TrainingDataByKey(meth, model_idx, keyword),
     ActualKeyParam(keyword, invo, train)),
     CallGraphEdge(invo, meth),
+    !FilteredTrainingMethod(meth),
     ActualParam(model_idx, invo, model).
 
 TestDataWithModel(model, test, invo, meth) :-
@@ -443,6 +473,23 @@ TestDataWithModel(model, test, invo, meth) :-
     !InvokeInLoop(invo), // and there should be no flow between test and val! [TODO]
     ActualParam(model_idx, invo, model).
 
+ScoredTestDataWithModel(model, test, invo, meth) :-
+    TestDataWithModel(model, test, invo, meth),
+    CallGraphEdge(invo, meth),
+    ScoredData(meth, model_idx, idx),
+    ActualParam(idx, invo, test),
+    ActualParam(model_idx, invo, model).
+
+ScoredTestDataWithModel(model, test, invo, meth) :-
+    TestDataWithModel(model, test, invo, meth),
+    CallGraphEdge(invo, meth),
+    ActualReturn(ret_idx, invo, ret),
+    ret_idx = 0,
+    FlowFromExtended(res, ret, _),
+    ScoredResult(meth2, res_idx),
+    CallGraphEdge(invo2, meth2),
+    ActualParam(res_idx, invo2, res).
+
 ValDataWithModel(model, val, invo, meth) :-
     (TestData(meth, model_idx, idx),
     ActualParam(idx, invo, val);
@@ -451,6 +498,20 @@ ValDataWithModel(model, val, invo, meth) :-
     CallGraphEdge(invo, meth),
     InvokeInLoop(invo),
     ActualParam(model_idx, invo, model).
+
+ValDataWithModel(model, val, invo, meth) :-
+    (ValData(meth, model_idx, idx),
+    ActualParam(idx, invo, val);
+    ValDataByKey(meth, model_idx, keyword),
+    ActualKeyParam(keyword, invo, val)),
+    CallGraphEdge(invo, meth),
+    ActualParam(model_idx, invo, model).
+
+// ValDataWithModel(test, invo, meth) :-
+//     ScoredTestDataWithModel(testModel, test, invo, meth),
+//     ScoredTestDataWithModel(testModel2, test, invo2, meth2),
+//     invo != invo2,
+//     DataOverlap(testModel, testModel2).
 
 ValTestPair(valModel, val, testModel, test) :-
     TestDataWithModel(testModel, test, _, _),
@@ -561,16 +622,16 @@ NoTestData(trainModel, invo, meth) :-
 
 .decl MultiUseTestLeak(test:Var, invo:Invocation, meth:Method)
 MultiUseTestLeak(test, invo, meth) :-
-    TestDataWithModel(testModel, test, invo, meth),
-    TestDataWithModel(testModel2, test2, invo2, meth2),
+    ScoredTestDataWithModel(testModel, test, invo, meth),
+    ScoredTestDataWithModel(testModel2, test2, invo2, meth2),
     invo != invo2,
-    DataOverlap(test, test2),
-    DataOverlap(testModel2, testModel). // we should distinguish related/unrelated models?
+    DataOverlap(test, test2).
 
 // [TODO] separate validation/test, detect test multi-use
 
 .output TrainTestPair
 .output ValDataWithModel
+.output ScoredTestDataWithModel
 .output FlowFromEdge
 .output FlowFrom
 .output FlowFromExtended
