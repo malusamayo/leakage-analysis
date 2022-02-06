@@ -62,16 +62,6 @@
 .input InvokeInLoop
 
 
-// train/test locations
-.decl TrainingData(method:Method, model_idx:number, data_index:number)
-.decl TrainingDataByKey(method:Method, model_idx:number, datakw:Var)
-.decl TestData(method:Method, model_idx:number, data_index:number)
-.decl TestDataByKey(method:Method, model_idx:number, datakw:Var)
-.decl ValData(method:Method, model_idx:number, data_index:number)
-.decl ValDataByKey(method:Method, model_idx:number, datakw:Var)
-.decl ScoredData(method:Method, model_idx:number, data_index:number)
-.decl ScoredResult(method:Method, result_index:number)
-.decl FilteredTrainingMethod(method:Method)
 
 // taint analysis input relations
 .decl ParamToRetTaintSourceMethod(to:number, from:number, method:Method, taintType:symbol)
@@ -190,6 +180,17 @@ TaintCondition(4027, 0, "pipeline").
 
 ParamToRetTaintSourceMethod(0, 1, "ImageDataGenerator.flow", "dup"). 
 
+
+// train/test locations
+.decl TrainingData(method:Method, model_idx:number, data_index:number)
+.decl TrainingDataByKey(method:Method, model_idx:number, datakw:Var)
+.decl TestData(method:Method, model_idx:number, data_index:number)
+.decl TestDataByKey(method:Method, model_idx:number, datakw:Var)
+.decl ValData(method:Method, model_idx:number, data_index:number)
+.decl ValDataByKey(method:Method, model_idx:number, datakw:Var)
+.decl ScoredData(method:Method, model_idx:number, data_index:number)
+.decl ScoredResult(method:Method, result_index:number)
+.decl FilteredTrainingMethod(method:Method)
 
 TrainingData(meth, 0, 1) :-
     CallGraphEdge(_, meth),
@@ -411,20 +412,6 @@ FlowFrom(to, from, tag) :-
 FlowFromExtended(to, from, tag) :-
     FlowFrom(to, from, tag).
 
-// .decl Alias(a:Var, b:Var)
-// .decl AliasFilter(a:Var, b:Var)
-
-
-// Alias(to, from) :-
-//     VarPointsTo(to, value),
-//     VarPointsTo(from, value),
-//     !AliasFilter(to, from).
-
-// AliasFilter(from, to) :-
-//     VarPointsTo(to, value),
-//     VarPointsTo(from, _),
-//     !VarPointsTo(from, value).
-
 FlowFromExtended(to, from, "equiv"),
 FlowFromExtended(to, from, "normal") :-
     VarPointsTo(to, value),
@@ -446,14 +433,15 @@ FlowFromExtended(to, from, tag) :-
     FlowFromExtended(to, mid, tag),
     FlowFromExtended(mid, from, tag).
 
-// ---- derived training/test data rules ----
+// ---- derived training/validation/test data rules ----
 .decl TrainingDataWithModel(model:Var, train:Var, invo:Invocation, meth:Method)
+.decl ValOrTestDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
+.decl ScoredDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
 .decl TestDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
-.decl ScoredTestDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
+.decl ValDataWithModel(model:Var, val:Var, invo:Invocation, meth:Method)
 .decl TrainTestPair(trainModel:Var, train:Var, testModel:Var, test:Var)
 
-.decl ValDataWithModel(model:Var, val:Var, invo:Invocation, meth:Method)
-.decl ValTestPair(trainModel:Var, train:Var, testModel:Var, test:Var)
+// .decl ValTestPair(trainModel:Var, train:Var, testModel:Var, test:Var)
 
 TrainingDataWithModel(model, train, invo, meth) :-
     (TrainingData(meth, model_idx, idx),
@@ -464,40 +452,29 @@ TrainingDataWithModel(model, train, invo, meth) :-
     !FilteredTrainingMethod(meth),
     ActualParam(model_idx, invo, model).
 
-TestDataWithModel(model, test, invo, meth) :-
+// could be both
+ValOrTestDataWithModel(model, test, invo, meth) :-
     (TestData(meth, model_idx, idx),
     ActualParam(idx, invo, test);
     TestDataByKey(meth, model_idx, keyword),
     ActualKeyParam(keyword, invo, test)),
     CallGraphEdge(invo, meth),
-    !InvokeInLoop(invo), // and there should be no flow between test and val! [TODO]
     ActualParam(model_idx, invo, model).
 
-ScoredTestDataWithModel(model, test, invo, meth) :-
-    TestDataWithModel(model, test, invo, meth),
-    CallGraphEdge(invo, meth),
+ScoredDataWithModel(model, test, invo, meth) :-
+    ValOrTestDataWithModel(model, test, invo, meth),
     ScoredData(meth, model_idx, idx),
     ActualParam(idx, invo, test),
     ActualParam(model_idx, invo, model).
 
-ScoredTestDataWithModel(model, test, invo, meth) :-
-    TestDataWithModel(model, test, invo, meth),
-    CallGraphEdge(invo, meth),
+ScoredDataWithModel(model, test, invo, meth) :-
+    ValOrTestDataWithModel(model, test, invo, meth),
     ActualReturn(ret_idx, invo, ret),
     ret_idx = 0,
     FlowFromExtended(res, ret, _),
     ScoredResult(meth2, res_idx),
     CallGraphEdge(invo2, meth2),
     ActualParam(res_idx, invo2, res).
-
-ValDataWithModel(model, val, invo, meth) :-
-    (TestData(meth, model_idx, idx),
-    ActualParam(idx, invo, val);
-    TestDataByKey(meth, model_idx, keyword),
-    ActualKeyParam(keyword, invo, val)),
-    CallGraphEdge(invo, meth),
-    InvokeInLoop(invo),
-    ActualParam(model_idx, invo, model).
 
 ValDataWithModel(model, val, invo, meth) :-
     (ValData(meth, model_idx, idx),
@@ -507,17 +484,26 @@ ValDataWithModel(model, val, invo, meth) :-
     CallGraphEdge(invo, meth),
     ActualParam(model_idx, invo, model).
 
-// ValDataWithModel(test, invo, meth) :-
-//     ScoredTestDataWithModel(testModel, test, invo, meth),
-//     ScoredTestDataWithModel(testModel2, test, invo2, meth2),
-//     invo != invo2,
-//     DataOverlap(testModel, testModel2).
+ValDataWithModel(model, val, invo, meth) :-
+    ValOrTestDataWithModel(model, val, invo, meth),
+    InvokeInLoop(invo).
 
-ValTestPair(valModel, val, testModel, test) :-
-    TestDataWithModel(testModel, test, _, _),
-    ValDataWithModel(valModel, val, _, _),
-    (val = test; FlowFrom(test, val, _); FlowFrom(val, test, _)),
-    (valModel = testModel; FlowFromExtended(testModel, valModel, _)).
+ValDataWithModel(testModel, val, invo, meth),
+ValDataWithModel(testModel2, val, invo, meth) :-
+    ScoredDataWithModel(testModel, val, invo, meth),
+    ScoredDataWithModel(testModel2, val, invo2, meth2),
+    invo != invo2,
+    DataOverlap(testModel, testModel2).
+
+TestDataWithModel(model, test, invo, meth) :-
+    ValOrTestDataWithModel(model, test, invo, meth),
+    !ValDataWithModel(model, test, invo, meth). // and there should be no flow between test and val! [TODO]
+
+// ValTestPair(valModel, val, testModel, test) :-
+//     TestDataWithModel(testModel, test, _, _),
+//     ValDataWithModel(valModel, val, _, _),
+//     (val = test; FlowFrom(test, val, _); FlowFrom(val, test, _)),
+//     (valModel = testModel; FlowFromExtended(testModel, valModel, _)).
 
 TrainTestPair(trainModel, train, testModel, test) :-
     TestDataWithModel(testModel, test, _, _),
@@ -577,6 +563,13 @@ PreProcessingLeak(src, invo, meth) :-
     (FlowFromExtended(test, src, _);
     FlowFromExtended(test, src_equiv, _), FlowFromExtended(src, src_equiv, "equiv")).
 
+PreProcessingLeak(src, invo, meth) :-
+    TrainTestPair(trainModel, train, testModel, test),
+    TrainingDataWithModel(trainModel, train, invo, meth),
+    TestDataWithModel(testModel, test, _, _),
+    ReduceEdge(to, src),
+    FlowFromExtended(test, to, _).
+
 // Overlap detection
 .decl DataOverlap(train:Var, test:Var)
 .decl DuplicateEdge(to:Var, from:Var)
@@ -622,8 +615,10 @@ NoTestData(trainModel, invo, meth) :-
 
 .decl MultiUseTestLeak(test:Var, invo:Invocation, meth:Method)
 MultiUseTestLeak(test, invo, meth) :-
-    ScoredTestDataWithModel(testModel, test, invo, meth),
-    ScoredTestDataWithModel(testModel2, test2, invo2, meth2),
+    TestDataWithModel(testModel, test, invo, meth),
+    ScoredDataWithModel(testModel, test, invo, meth),
+    TestDataWithModel(testModel2, test2, invo2, meth2),
+    ScoredDataWithModel(testModel2, test2, invo2, meth2),
     invo != invo2,
     DataOverlap(test, test2).
 
@@ -631,7 +626,7 @@ MultiUseTestLeak(test, invo, meth) :-
 
 .output TrainTestPair
 .output ValDataWithModel
-.output ScoredTestDataWithModel
+.output ScoredDataWithModel
 .output FlowFromEdge
 .output FlowFrom
 .output FlowFromExtended
