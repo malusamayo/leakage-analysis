@@ -28,7 +28,7 @@ def template(test_file, taintMethods):
 
 def test_basic():
     template("test0.py", ["LogisticRegression.fit"])
-    template("test1.py", [])
+    template("test1.py", ["LogisticRegression.fit"]) # should not use distribution of whole test set as well!
     template("test2.py", ["LogisticRegression.fit"])
     template("test3.py", [])
     template("test4.py", [])

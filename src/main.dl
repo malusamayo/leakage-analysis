@@ -71,6 +71,7 @@
 .decl ParamToParamCondTaintSourceMethod(to:number, from:number, cond_id:number, method:Method, taintType:symbol)
 .decl TaintCondition(cond_id:number, src_idx:number, taintType:symbol)
 
+.decl ParamToRetFlowFilterMethod(to:number, from:number, method:Method)
 // .decl ParamToParamTaintTransferMethod(to:number, from:number, method:Method)
 // .decl ParamToRetTaintTransferMethod(to:number, from:number, method:Method)
 // .decl ParamKeyToRetTaintTransferMethod(to:number, from:Var, method:Method)
@@ -90,6 +91,9 @@
 // -- facts --
 
 ParamToParamFlow(0, 1, "pandas.Series.fillna").
+ParamToRetFlowFilterMethod(0, 0, meth) :-
+    CallGraphEdge(_, meth),
+    match(".*[.](fit|fit_transform|transform)", meth).
 
 ParamToRetEquivFlow(0, 0, "ndarray.reshape").
 ParamToRetEquivFlow(0, 0, "pandas.Series.fillna").
@@ -364,6 +368,7 @@ VarPointsTo(to, value) :-
 .decl FlowFromExtended(to:Var, from:Var, tag:symbol)
 .decl ParamToParamFlow(to:number, from:number, method:Method) // input facts
 .decl ParamToRetEquivFlow(to:number, from:number, method:Method) 
+.decl NonDataTransferEdge(to:Var, from:Var)
 
 FlowFromEdge(to, from, "normal") :-
     CallGraphEdge(invo, meth),
@@ -401,6 +406,16 @@ FlowFromEdge(to, from, "equiv") :-
     ActualParam(fromIdx, invo, from),
     ActualReturn(toIdx, invo, to).
 
+NonDataTransferEdge(to, from) :-
+    ParamToRetFlowFilterMethod(to_idx, from_idx, meth),
+    CallGraphEdge(invo, meth),
+    ActualParam(from_idx, invo, from),
+    ActualReturn(to_idx, invo, to).
+
+FlowFromEdge(to, from, "data") :-
+    !NonDataTransferEdge(to, from),
+    FlowFromEdge(to, from, "normal").
+
 FlowFrom(to, from, tag) :-
     FlowFromEdge(to, from, tag).
 
@@ -412,17 +427,22 @@ FlowFrom(to, from, tag) :-
 FlowFromExtended(to, from, tag) :-
     FlowFrom(to, from, tag).
 
+FlowFromExtended(to, from, "data"),
 FlowFromExtended(to, from, "equiv"),
 FlowFromExtended(to, from, "normal") :-
     VarPointsTo(to, value),
     VarPointsTo(from, value).
 
+
+FlowFromExtended(to, from, "data"),
 FlowFromExtended(to, from, "equiv"),
 FlowFromExtended(to, from, "normal") :-
     VarPointsTo(to, baseValue),
     IndexContentPointsTo(baseValue, value),
     VarPointsTo(from, value).
 
+
+FlowFromExtended(to, from, "data"),
 FlowFromExtended(to, from, "equiv"),
 FlowFromExtended(to, from, "normal") :-
     VarPointsTo(to, baseValue),
@@ -560,15 +580,15 @@ PreProcessingLeak(src, invo, meth) :-
     TestDataWithModel(testModel, test, _, _),
     ReduceEdge(to, src),
     FlowFromExtended(train, to, _),
-    (FlowFromExtended(test, src, _);
-    FlowFromExtended(test, src_equiv, _), FlowFromExtended(src, src_equiv, "equiv")).
+    (FlowFromExtended(test, src, "data");
+    FlowFromExtended(test, src_equiv, "data"), FlowFromExtended(src, src_equiv, "equiv")).
 
 PreProcessingLeak(src, invo, meth) :-
     TrainTestPair(trainModel, train, testModel, test),
     TrainingDataWithModel(trainModel, train, invo, meth),
     TestDataWithModel(testModel, test, _, _),
     ReduceEdge(to, src),
-    FlowFromExtended(test, to, _).
+    FlowFromExtended(test, to, "data").
 
 // Overlap detection
 .decl DataOverlap(train:Var, test:Var)
@@ -578,26 +598,26 @@ DuplicateEdge(to, from) :-
     TaintStartsTarget(from, to, "dup").
 
 DataOverlap(train, test) :- // split with slicing will be recognized as overlaps
-    (FlowFromExtended(train, test, _);
-    FlowFromExtended(test, train, _)).
+    (FlowFromExtended(train, test, "data");
+    FlowFromExtended(test, train, "data")).
 
 DataOverlap(train, test) :-
     DuplicateEdge(des, _),
-    FlowFromExtended(train, des, _),
-    FlowFromExtended(test, des, _).
+    FlowFromExtended(train, des, "data"),
+    FlowFromExtended(test, des, "data").
 
 DataOverlap(train, test) :-
     DuplicateEdge(des, src),
-    FlowFromExtended(train, des, _),
-    (FlowFromExtended(test, src, _);
-    FlowFromExtended(test, src_equiv, _), 
+    FlowFromExtended(train, des, "data"),
+    (FlowFromExtended(test, src, "data");
+    FlowFromExtended(test, src_equiv, "data"), 
     FlowFromExtended(src, src_equiv, "equiv")).
 
 DataOverlap(train, test) :-
     DuplicateEdge(des, src),
-    FlowFromExtended(test, des, _),
-    (FlowFromExtended(train, src, _);
-    FlowFromExtended(train, src_equiv, _), 
+    FlowFromExtended(test, des, "data"),
+    (FlowFromExtended(train, src, "data");
+    FlowFromExtended(train, src_equiv, "data"), 
     FlowFromExtended(src, src_equiv, "equiv")).
 
 OverlapLeak(testModel, trainModel, invo, meth) :-
