@@ -218,15 +218,16 @@ ValData(meth, 0, 1) :-
 
 ValDataByKey(meth, 0, "validation_data") :-
     CallGraphEdge(_, meth),
-    match(".*[.]fit_generator", meth).
+    match(".*[.](fit|fit_generator)", meth).
 
 ScoredData(meth, 0, 1) :-
     CallGraphEdge(_, meth),
     match(".*[.](score|evaluate)", meth).
 
-ScoredResult(meth, 1) :-
+// ???
+ScoredResult(meth, 2) :-
     CallGraphEdge(_, meth),
-    match(".*_(score|loss)", meth).
+    match(".*(accuracy_score|balanced_accuracy_score|top_k_accuracy_score|average_precision_score|brier_score_loss|f1_score|f1_score|f1_score|f1_score|f1_score|log_loss|precision_score|recall_score|jaccard_score|roc_auc_score|roc_auc_score|roc_auc_score|roc_auc_score|roc_auc_score|adjusted_mutual_info_score|adjusted_rand_score|completeness_score|fowlkes_mallows_score|homogeneity_score|mutual_info_score|normalized_mutual_info_score|rand_score|v_measure_score|explained_variance_score|max_error|mean_absolute_error|mean_squared_error|mean_squared_error|mean_squared_log_error|median_absolute_error|r2_score|mean_poisson_deviance|mean_gamma_deviance|mean_absolute_percentage_errors)", meth).
 
 FilteredTrainingMethod(meth) :-
     CallGraphEdge(_, meth),
@@ -505,6 +506,14 @@ ValDataWithModel(model, val, invo, meth) :-
     ActualParam(model_idx, invo, model).
 
 ValDataWithModel(model, val, invo, meth) :-
+    ValDataByKey(meth, model_idx, keyword),
+    keyword = "validation_data",
+    ActualKeyParam(keyword, invo, tup),
+    StoreIndex(tup, "0", val),
+    CallGraphEdge(invo, meth),
+    ActualParam(model_idx, invo, model).
+
+ValDataWithModel(model, val, invo, meth) :-
     ValOrTestDataWithModel(model, val, invo, meth),
     InvokeInLoop(invo).
 
@@ -625,6 +634,12 @@ OverlapLeak(testModel, trainModel, invo, meth) :-
     TrainingDataWithModel(trainModel, train, invo, meth),
     TestDataWithModel(testModel, test, _, _),
     DataOverlap(train, test).
+
+OverlapLeak(testModel, valModel, invo, meth) :-
+    ValDataWithModel(valModel, val, invo, meth),
+    TestDataWithModel(testModel, test, _, _),
+    DataOverlap(val, test),
+    DataOverlap(testModel, valModel).
 
 // No Test detection
 .decl NoTestData(trainModel:Var, invo:Invocation, meth:Method)
