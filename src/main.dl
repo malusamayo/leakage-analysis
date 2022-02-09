@@ -587,17 +587,19 @@ PreProcessingLeak(src, invo, meth) :-
     TrainTestPair(trainModel, train, testModel, test),
     TrainingDataWithModel(trainModel, train, invo, meth),
     TestDataWithModel(testModel, test, _, _),
-    ReduceEdge(to, src),
-    FlowFromExtended(train, to, _),
-    (FlowFromExtended(test, src, "data");
-    FlowFromExtended(test, src_equiv, "data"), FlowFromExtended(src, src_equiv, "equiv")).
+    ReduceEdge(reduced_from_src, src),
+    FlowFromExtended(train, reduced_from_src, _),
+    DataOverlap(test, src).
+    // (FlowFromExtended(test, src, "data");
+    // FlowFromExtended(test, src_equiv, "data"), FlowFromExtended(src, src_equiv, "equiv")).
 
 PreProcessingLeak(src, invo, meth) :-
     TrainTestPair(trainModel, train, testModel, test),
     TrainingDataWithModel(trainModel, train, invo, meth),
     TestDataWithModel(testModel, test, _, _),
-    ReduceEdge(to, src),
-    FlowFromExtended(test, to, "data").
+    ReduceEdge(reduced_from_src, src),
+    FlowFromExtended(test, reduced_from_src, _),
+    DataOverlap(test, src).
 
 // Overlap detection
 .decl DataOverlap(train:Var, test:Var)
@@ -606,9 +608,15 @@ PreProcessingLeak(src, invo, meth) :-
 DuplicateEdge(to, from) :-
     TaintStartsTarget(from, to, "dup").
 
+// DataOverlap(train, test) :- // split with slicing will be recognized as overlaps
+//     (FlowFromExtended(train, test, "data");
+//     FlowFromExtended(test, train, "data")).
+
 DataOverlap(train, test) :- // split with slicing will be recognized as overlaps
-    (FlowFromExtended(train, test, "data");
-    FlowFromExtended(test, train, "data")).
+    FlowFromExtended(test, src_equiv, "data"), 
+    FlowFromExtended(train, src_equiv, "equiv").
+
+DataOverlap(train, test) :- DataOverlap(test, train).
 
 DataOverlap(train, test) :-
     DuplicateEdge(des, _),
