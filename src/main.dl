@@ -66,16 +66,6 @@
 .input InvokeInLoop
 
 
-
-// taint analysis input relations
-.decl ParamToRetTaintSourceMethod(to:number, from:number, method:Method, taintType:symbol)
-.decl ParamToParamTaintSourceMethod(to:number, from:number, method:Method, taintType:symbol)
-.decl RetTaintSourceMethod(retIndex:number, method:Method, taintType:symbol)
-.decl ParamToRetCondTaintSourceMethod(to:number, from:number, cond_id:number, method:Method, taintType:symbol)
-.decl ParamToParamCondTaintSourceMethod(to:number, from:number, cond_id:number, method:Method, taintType:symbol)
-.decl TaintCondition(cond_id:number, src_idx:number, taintType:symbol)
-
-.decl ParamToRetFlowFilterMethod(to:number, from:number, method:Method)
 // .decl ParamToParamTaintTransferMethod(to:number, from:number, method:Method)
 // .decl ParamToRetTaintTransferMethod(to:number, from:number, method:Method)
 // .decl ParamKeyToRetTaintTransferMethod(to:number, from:Var, method:Method)
@@ -105,7 +95,15 @@ ConstantValue(to, constant) :-
     VarPointsTo(to, value),
     ConstantValue(from, constant).
 
-// -- facts --
+// data flow analysis input relations
+.decl ParamToParamFlow(to:number, from:number, method:Method) 
+.decl ParamToRetFlowFilterMethod(to:number, from:number, method:Method)
+
+.decl ParamToRetEquivFlow(to:number, from:number, method:Method)
+.decl ParamToRetCondEquivFlow(to:number, from:number, cond_id:number,method:Method)
+.decl ParamContentToRetCondEquivFlow(to:number, from:number, cond_id:number,method:Method)
+.decl FlowCondition(cond_id:number, keyword:Var, constant:symbol)
+
 
 ParamToParamFlow(0, 1, "pandas.Series.fillna").
 ParamToRetFlowFilterMethod(0, 0, meth) :-
@@ -135,13 +133,33 @@ ParamToRetEquivFlow(0, 1, meth) :-
     CallGraphEdge(_, meth),
     match(".*[.](transform|fit_transform)", meth).
 
-ParamToRetEquivFlow(0, 0, meth) :-
+ParamToRetEquivFlow(0, 1, meth) :-
     CallGraphEdge(_, meth),
-    match("pandas[.](Series|DataFrame|concat|get_dummies)", meth).
+    match("pandas[.](Series|DataFrame|get_dummies)", meth).
 
 ParamToRetEquivFlow(0, 0, meth) :-
     CallGraphEdge(_, meth),
     match("pandas[.](Series|DataFrame)[.](copy|fillna|replace|map|apply|applymap)", meth).
+
+ParamToRetCondEquivFlow(0, 0, 173, meth) :-
+    CallGraphEdge(_, meth),
+    match("pandas[.](Series|DataFrame)[.](drop)", meth).
+
+// list member equiv
+ParamContentToRetCondEquivFlow(0, 1, 173, meth) :-
+    CallGraphEdge(_, meth),
+    match("pandas[.](concat)", meth).
+
+FlowCondition(173, "axis", "1").
+
+
+// taint analysis input relations
+.decl ParamToRetTaintSourceMethod(to:number, from:number, method:Method, taintType:symbol)
+.decl ParamToParamTaintSourceMethod(to:number, from:number, method:Method, taintType:symbol)
+.decl RetTaintSourceMethod(retIndex:number, method:Method, taintType:symbol)
+.decl ParamToRetCondTaintSourceMethod(to:number, from:number, cond_id:number, method:Method, taintType:symbol)
+.decl ParamToParamCondTaintSourceMethod(to:number, from:number, cond_id:number, method:Method, taintType:symbol)
+.decl TaintCondition(cond_id:number, src_idx:number, taintType:symbol)
 
 
 ParamToRetTaintSourceMethod(0, 1, meth, "rowset") :-
@@ -394,8 +412,6 @@ VarPointsTo(to, value) :-
 .decl FlowFrom(to:Var, from:Var, tag:symbol)
 .decl FlowFromEdge(to:Var, from:Var, tag:symbol)
 .decl FlowFromExtended(to:Var, from:Var, tag:symbol)
-.decl ParamToParamFlow(to:number, from:number, method:Method) // input facts
-.decl ParamToRetEquivFlow(to:number, from:number, method:Method) 
 .decl NonDataTransferEdge(to:Var, from:Var)
 
 FlowFromEdge(to, from, "normal") :-
@@ -432,6 +448,27 @@ FlowFromEdge(to, from, "equiv") :-
     CallGraphEdge(invo, meth),
     ParamToRetEquivFlow(toIdx, fromIdx, meth),
     ActualParam(fromIdx, invo, from),
+    ActualReturn(toIdx, invo, to).
+
+FlowFromEdge(to, from, "equiv") :-
+    CallGraphEdge(invo, meth),
+    ParamToRetCondEquivFlow(toIdx, fromIdx, cond_id, meth),
+    FlowCondition(cond_id, keyword, content),
+    ActualKeyParam(keyword, invo, var),
+    ConstantValue(var, content),
+    ActualParam(fromIdx, invo, from),
+    ActualReturn(toIdx, invo, to).
+
+FlowFromEdge(to, from, "equiv") :-
+    CallGraphEdge(invo, meth),
+    ParamContentToRetCondEquivFlow(toIdx, fromIdx, cond_id, meth),
+    FlowCondition(cond_id, keyword, content),
+    ActualKeyParam(keyword, invo, var),
+    ConstantValue(var, content),
+    ActualParam(fromIdx, invo, fromList),
+    VarPointsTo(fromList, fromListValue),
+    VarPointsTo(from, fromValue),
+    IndexContentPointsTo(fromListValue, fromValue),
     ActualReturn(toIdx, invo, to).
 
 NonDataTransferEdge(to, from) :-

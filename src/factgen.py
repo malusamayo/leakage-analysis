@@ -225,6 +225,7 @@ class FactGenerator(ast.NodeVisitor):
                 self.FManager.add_fact("AssignFloatConstant", (target_name, value.value))
             elif type(value.value) == str:
                 self.FManager.add_fact("AssignStrConstant", (target_name, value.value))
+            self.FManager.add_fact("Alloc", (target_name, self.FManager.get_new_heap()))
         # other literals
         elif type(value) in [ast.List, ast.Tuple, ast.Set]:
             if len(value.elts) <= 50 and ast.Name in [type(x) for x in value.elts]:
