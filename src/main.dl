@@ -14,6 +14,8 @@
 .decl AssignVar(to:Var, from:Var)
 .decl AssignStrConstant(to:Var, constant:symbol)
 .decl AssignBoolConstant(to:Var, constant:symbol)
+.decl AssignIntConstant(to:Var, constant:symbol)
+.decl AssignFloatConstant(to:Var, constant:symbol)
 .decl AssignBinOp(to:Var, left:Var, op:symbol, right:Var)
 .decl LoadField(to:Var, base:Var, f:Field)
 .decl StoreField(base:Var, f:Field, from:Var)
@@ -41,6 +43,8 @@
 .input AssignVar
 .input AssignStrConstant
 .input AssignBoolConstant
+.input AssignIntConstant
+.input AssignFloatConstant
 .input AssignBinOp
 .input LoadField
 .input StoreField
@@ -87,6 +91,19 @@
 // .decl ParamToRetSubsetMethod(to:number, from:number, method:Method)
 // .decl ParamToRetEquivMethod(to:number, from:number, method:Method)
 
+// Constant Propagation
+.decl ConstantValue(var:Var, constant:symbol)
+
+ConstantValue(var, constant) :-
+    AssignBoolConstant(var, constant);
+    AssignStrConstant(var, constant);
+    AssignIntConstant(var, constant);
+    AssignFloatConstant(var, constant).
+
+ConstantValue(to, constant) :-
+    VarPointsTo(from, value),
+    VarPointsTo(to, value),
+    ConstantValue(from, constant).
 
 // -- facts --
 
