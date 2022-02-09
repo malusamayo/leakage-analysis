@@ -563,7 +563,7 @@ Leak(var, invo, meth) :-
 
 // General edges/taints
 .decl TaintStarts(var:Var, label:symbol)
-.decl TaintStartsTarget(var:Var, target:Var, label:symbol)
+.decl TaintStartsTarget(target:Var, src:Var, label:symbol)
 .decl TaintedVar(var:Var)
 
 TaintStarts(var, label) :-
@@ -572,7 +572,7 @@ TaintStarts(var, label) :-
     ActualReturn(idx, invo, var).
 
 TaintStarts(var, label),
-TaintStartsTarget(var, target, label) :-
+TaintStartsTarget(target, var, label) :-
     CallGraphEdge(invo, meth),
     (ParamToParamTaintSourceMethod(toIdx, fromIdx, meth, label), ActualParam(toIdx, invo, target);
     ParamToRetTaintSourceMethod(toIdx, fromIdx, meth, label), ActualReturn(toIdx, invo, target);
@@ -592,7 +592,7 @@ TaintedVar(to) :-
 .decl ReduceEdge(to:Var, from:Var)
 
 ReduceEdge(to, from) :-
-    TaintStartsTarget(from, to, "rowset").
+    TaintStartsTarget(to, from, "rowset").
 
 PreProcessingLeak(src, invo, meth) :-
     TrainTestPair(trainModel, train, testModel, test),
@@ -617,7 +617,7 @@ PreProcessingLeak(src, invo, meth) :-
 .decl DuplicateEdge(to:Var, from:Var)
 
 DuplicateEdge(to, from) :-
-    TaintStartsTarget(from, to, "dup").
+    TaintStartsTarget(to, from, "dup").
 
 // DataOverlap(train, test) :- // split with slicing will be recognized as overlaps
 //     (FlowFromExtended(train, test, "data");
