@@ -28,7 +28,7 @@ def ir_transform(tree, ir_path):
     v = CodeTransformer()
     new_tree = v.visit(tree)
     new_code = astunparse.unparse(new_tree)
-    print(new_code)
+    # print(new_code)
     with open(ir_path, "w") as f:
         f.write(new_code)
     return new_tree
