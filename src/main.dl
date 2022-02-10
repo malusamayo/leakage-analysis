@@ -1,7 +1,7 @@
 .type Var <: symbol
 .type Type <: symbol
 .type Field <: symbol
-.type Index <: symbol
+.type Index <: Var
 .type Invocation <: symbol
 .type Method <: symbol
 .type Value <: symbol
@@ -83,6 +83,7 @@
 
 // Constant Propagation
 .decl ConstantValue(var:Var, constant:symbol)
+.decl VarEquals(var1:Var, var2:Var)
 
 ConstantValue(var, constant) :-
     AssignBoolConstant(var, constant);
@@ -94,6 +95,26 @@ ConstantValue(to, constant) :-
     VarPointsTo(from, value),
     VarPointsTo(to, value),
     ConstantValue(from, constant).
+
+// Common Expression Detection
+VarEquals(var1, var2) :-
+    ConstantValue(var1, constant),
+    ConstantValue(var2, constant).
+
+VarEquals(var, var) :-
+    VarPointsTo(var, _).
+
+VarEquals(var1, var2) :-
+    (LoadField(var1, base1, fld), LoadField(var2, base2, fld);
+    LoadIndex(var1, base1, i1), LoadIndex(var2, base2, i2), (i1 = i2; VarEquals(i1, i2))),
+    VarEquals(base1, base2).
+
+VarEquals(var1, var2) :-
+    CallGraphEdge(invo1, meth), ActualParam(1, invo1, param1), ActualReturn(0, invo1, var1),
+    CallGraphEdge(invo2, meth), ActualParam(1, invo2, param2), ActualReturn(0, invo2, var2),
+    meth = "len",
+    VarEquals(param1, param2).
+
 
 // data flow analysis input relations
 .decl ParamToParamFlow(to:number, from:number, method:Method) 
