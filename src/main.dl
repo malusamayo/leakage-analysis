@@ -536,20 +536,20 @@ FlowFromExtended(to, from, "normal") :-
     VarPointsTo(from, value).
 
 
-FlowFromExtended(to, from, "data"),
-FlowFromExtended(to, from, "equiv"),
-FlowFromExtended(to, from, "normal") :-
-    VarPointsTo(to, baseValue),
-    IndexContentPointsTo(baseValue, value),
-    VarPointsTo(from, value).
+// FlowFromExtended(to, from, "data"),
+// FlowFromExtended(to, from, "equiv"),
+// FlowFromExtended(to, from, "normal") :-
+//     VarPointsTo(to, baseValue),
+//     IndexContentPointsTo(baseValue, _, value),
+//     VarPointsTo(from, value).
 
 
-FlowFromExtended(to, from, "data"),
-FlowFromExtended(to, from, "equiv"),
-FlowFromExtended(to, from, "normal") :-
-    VarPointsTo(to, baseValue),
-    FieldPointsTo(baseValue, _, value),
-    VarPointsTo(from, value).
+// FlowFromExtended(to, from, "data"),
+// FlowFromExtended(to, from, "equiv"),
+// FlowFromExtended(to, from, "normal") :-
+//     VarPointsTo(to, baseValue),
+//     FieldPointsTo(baseValue, _, value),
+//     VarPointsTo(from, value).
 
 FlowFromExtended(to, from, tag) :-
     FlowFromExtended(to, mid, tag),
@@ -618,13 +618,13 @@ ValDataWithModel(model, val, invo, meth) :-
     ValOrTestDataWithModel(model, val, invo, meth),
     InvokeInLoop(invo).
 
-// is it a problem??? [what is val data?]
-ValDataWithModel(testModel, val, invo, meth),
-ValDataWithModel(testModel2, val, invo, meth) :-
-    ScoredDataWithModel(testModel, val, invo, meth),
-    ScoredDataWithModel(testModel2, val, invo2, meth2),
-    invo != invo2,
-    DataOverlap(testModel, testModel2).
+// // is it a problem??? [what is val data?]
+// ValDataWithModel(testModel, val, invo, meth),
+// ValDataWithModel(testModel2, val, invo, meth) :-
+//     ScoredDataWithModel(testModel, val, invo, meth),
+//     ScoredDataWithModel(testModel2, val, invo2, meth2),
+//     invo != invo2,
+//     DataOverlap(testModel, testModel2).
 
 TestDataWithModel(model, test, invo, meth) :-
     ValOrTestDataWithModel(model, test, invo, meth),
@@ -710,11 +710,7 @@ PreProcessingLeak(src, invo, meth) :-
 DuplicateEdge(to, from) :-
     TaintStartsTarget(to, from, "dup").
 
-// DataOverlap(train, test) :- // split with slicing will be recognized as overlaps
-//     (FlowFromExtended(train, test, "data");
-//     FlowFromExtended(test, train, "data")).
-
-DataOverlap(train, test) :- // split with slicing will be recognized as overlaps
+DataOverlap(train, test) :- // split with slicing will never be recognized as overlaps
     FlowFromExtended(test, src_equiv, "data"), 
     FlowFromExtended(train, src_equiv, "equiv").
 
