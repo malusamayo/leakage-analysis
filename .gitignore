@@ -4,4 +4,4 @@ tests/inputs/*-fact/
 tests/inputs/*.json
 tests/inputs/*.ir.py
 tests/Github_samples*
-*/__pycache__
+__pycache__
