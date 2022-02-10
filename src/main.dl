@@ -336,9 +336,18 @@ FilteredTrainingMethod(meth) :-
 // ---- pointer analysis ----
 
 .decl VarPointsTo(var:Var, value:Value)
-.decl IndexContentPointsTo(baseValue:Value, value:Value)
+.decl IndexContentPointsTo(baseValue:Value, index:Index, value:Value)
 .decl FieldPointsTo(base:Value, field:Field, value:Value)
 .decl InterProcAssign(to:Var, from:Var)
+.decl SliceIndex(st:Var, ed:Var, step:Var, index:Index)
+
+SliceIndex(st, ed, step, index) :-
+    LoadSlice(_, _, st, ed, step),
+    index = ValueIdMacro(ValueIdMacro(st, ed), step).
+
+SliceIndex(st, ed, step, index) :-
+    StoreSlice(_, st, ed, step, _),
+    index = ValueIdMacro(ValueIdMacro(st, ed), step).
 
 // .decl TaintSource(taintValue:Value, srcValue:Value, taintType:symbol)
 // .decl TaintFrom(to:Var, from:Var)
@@ -354,11 +363,11 @@ VarPointsTo(to, value) :-
     LoadIndex(to, base, _),
     VarPointsTo(base, value). 
 VarPointsTo(to, value) :- 
-    LoadIndex(to, base, _),
+    LoadIndex(to, base, idx),
     VarPointsTo(base, baseValue),
-    IndexContentPointsTo(baseValue, value).    
-IndexContentPointsTo(baseValue, value) :- 
-    StoreIndex(base, _, from),
+    IndexContentPointsTo(baseValue, idx, value).    
+IndexContentPointsTo(baseValue, idx, value) :- 
+    StoreIndex(base, idx, from),
     VarPointsTo(base, baseValue),
     VarPointsTo(from, value).
 VarPointsTo(to, value) :- 
@@ -376,15 +385,22 @@ FieldPointsTo(baseValue, fld, value) :-
     VarPointsTo(base, baseValue),
     VarPointsTo(from, value).
 
+
+// we always allocate new values for slice reference
+// therefore we should propagate the new value back
+IndexContentPointsTo(baseValue, idx, value) :- 
+    LoadSlice(to, base, st, ed, step),
+    SliceIndex(st, ed, step, idx),
+    Alloc(to, value),
+    VarPointsTo(base, baseValue).
 VarPointsTo(to, value) :- 
-    LoadSlice(to, from, _, _, _),
-    VarPointsTo(from, value).
-VarPointsTo(to, value) :- 
-    LoadSlice(to, base, _, _, _),
+    LoadSlice(to, base, st, ed, step),
+    SliceIndex(st, ed, step, idx),
     VarPointsTo(base, baseValue),
-    IndexContentPointsTo(baseValue, value).  
-IndexContentPointsTo(baseValue, value) :- 
-    StoreSlice(base, _, _, _, from),
+    IndexContentPointsTo(baseValue, idx, value).  
+IndexContentPointsTo(baseValue, idx, value) :- 
+    StoreSlice(base, st, ed, step, from),
+    SliceIndex(st, ed, step, idx),
     VarPointsTo(base, baseValue),
     VarPointsTo(from, value).
 
@@ -489,7 +505,7 @@ FlowFromEdge(to, from, "equiv") :-
     ActualParam(fromIdx, invo, fromList),
     VarPointsTo(fromList, fromListValue),
     VarPointsTo(from, fromValue),
-    IndexContentPointsTo(fromListValue, fromValue),
+    IndexContentPointsTo(fromListValue, _, fromValue),
     ActualReturn(toIdx, invo, to).
 
 NonDataTransferEdge(to, from) :-
