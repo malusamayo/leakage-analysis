@@ -250,6 +250,10 @@ TaintCondition(4027, 0, "pipeline").
 
 ParamToRetTaintSourceMethod(0, 1, "ImageDataGenerator.flow", "dup"). 
 
+// oversampling leak
+ParamToRetTaintSourceMethod(0, 1, meth, "dup")  :-
+    CallGraphEdge(_, meth),
+    match("(RandomOverSampler|SMOTE|SMOTENC|SMOTEN|ADASYN|BorderlineSMOTE|KMeansSMOTE|SVMSMOTE)[.]fit_resample", meth).
 
 // train/test locations
 .decl TrainingData(method:Method, model_idx:number, data_index:number)
@@ -724,16 +728,12 @@ DataOverlap(train, test) :-
 DataOverlap(train, test) :-
     DuplicateEdge(des, src),
     FlowFromExtended(train, des, "data"),
-    (FlowFromExtended(test, src, "data");
-    FlowFromExtended(test, src_equiv, "data"), 
-    FlowFromExtended(src, src_equiv, "equiv")).
+    DataOverlap(test, src).
 
 DataOverlap(train, test) :-
     DuplicateEdge(des, src),
     FlowFromExtended(test, des, "data"),
-    (FlowFromExtended(train, src, "data");
-    FlowFromExtended(train, src_equiv, "data"), 
-    FlowFromExtended(src, src_equiv, "equiv")).
+    DataOverlap(train, src).
 
 OverlapLeak(testModel, trainModel, invo, meth) :-
     TrainTestPair(trainModel, train, testModel, test),
