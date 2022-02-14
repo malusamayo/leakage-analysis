@@ -549,7 +549,7 @@ ModelOverlap(model1, model2) :-
     IsModel(model1), IsModel(model2),
     FlowFromExtended(model1, model2, _).
 
-ModelOverlap(model2, model1) :- ModelOverlap(model2, model1).
+ModelOverlap(model2, model1) :- ModelOverlap(model1, model2).
 
 TrainingDataWithModel(model, train, invo, meth) :-
     (TrainingData(meth, model_idx, idx),
@@ -736,10 +736,11 @@ DataOverlap(train, test) :-
     DataOverlap(train, src).
 
 OverlapLeak(testModel, trainModel, invo, meth) :-
-    TrainTestPair(trainModel, train, testModel, test),
     TrainingDataWithModel(trainModel, train, invo, meth),
-    TestDataWithModel(testModel, test, _, _),
-    DataOverlap(train, test).
+    ValOrTestDataWithModel(testModel, test, _, _),
+    DataOverlap(train, test),
+    train != test,
+    ModelOverlap(trainModel, testModel).
 
 // OverlapLeak(testModel, valModel, invo, meth) :-
 //     ValDataWithModel(valModel, val, invo, meth),
@@ -773,6 +774,7 @@ MultiUseTestLeak(test, invo, meth) :-
 // [TODO] separate validation/test, detect test multi-use
 
 .output TrainTestPair
+.output TestDataWithModel
 .output ValDataWithModel
 .output ScoredDataWithModel
 .output FlowFromEdge
@@ -782,6 +784,7 @@ MultiUseTestLeak(test, invo, meth) :-
 .output TaintedVar
 .output VarPointsTo
 .output DataOverlap
+.output ModelOverlap
 .output PreProcessingLeak
 .output OverlapLeak
 .output NoTestData
