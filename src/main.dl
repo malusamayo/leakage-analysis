@@ -306,36 +306,6 @@ FilteredTrainingMethod(meth) :-
     match("(Imputer|SimpleImputer|IterativeImputer|KNNImputer)[.]fit", meth);
     match("(KBinsDiscretizer|PowerTransformer|QuantileTransformer|MaxAbsScaler|StandardScaler|MinMaxScaler|RobustScaler)[.]fit", meth)).
  
-// TrainingData("LogisticRegression.fit", 0, 1).
-// TrainingData("GaussianNB.fit", 0, 1).
-// TrainingData("Unknown.fit", 0, 1).
-// TrainingData("Model.fit", 0, 1).
-// TrainingData("Sequential.fit", 0, 1).
-
-// TestData("LogisticRegression.predict", 0, 1).
-// TestData("GaussianNB.predict", 0, 1).
-// TestData("Unknown.predict_proba", 0, 1).
-// TestData("Unknown.score", 0, 1).
-// TestData("Model.evaluate", 0, 1).
-// TestData("Sequential.evaluate", 0, 1).
-
-// ParamToRetTaintTransferMethod(0, 1, "pandas.Series.fillna").
-// ParamToParamTaintTransferMethod(0, 1, "pandas.Series.fillna").
-// ParamToRetTaintTransferMethod(0, 0, "PCA.transform").
-// ParamToRetTaintTransferMethod(0, 0, "SelectPercentile.transform").
-// ParamToRetTaintTransferMethod(0, 1, "DataFrameMapper").
-// ParamToRetTaintTransferMethod(0, 1, "Pipeline").
-// ParamKeyToRetTaintTransferMethod(0, "transformer_list", "FeatureUnion").
-// ParamToRetTaintTransferMethod(0, 1, "RandomizedSearchCV").
-
-// ParamToRetSubsetMethod(0, 1, meth),
-// ParamToRetSubsetMethod(1, 1, meth),
-// ParamToRetSubsetMethod(2, 2, meth),
-// ParamToRetSubsetMethod(3, 2, meth) :-
-//     CallGraphEdge(_, meth),
-//     match(".*train_test_split", meth).
-
-
 
 // ---- pointer analysis ----
 
@@ -566,8 +536,20 @@ FlowFromExtended(to, from, tag) :-
 .decl TestDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
 .decl ValDataWithModel(model:Var, val:Var, invo:Invocation, meth:Method)
 .decl TrainTestPair(trainModel:Var, train:Var, testModel:Var, test:Var)
+.decl TrainValPair(trainModel:Var, train:Var, valModel:Var, val:Var)
 
-// .decl ValTestPair(trainModel:Var, train:Var, testModel:Var, test:Var)
+.decl ModelOverlap(model1:Var, model2:Var)
+.decl IsModel(model:Var)
+
+IsModel(model) :-   // one case to consider
+    TrainingDataWithModel(model, _, _, _);
+    ValOrTestDataWithModel(model, _, _, _).
+
+ModelOverlap(model1, model2) :-
+    IsModel(model1), IsModel(model2),
+    FlowFromExtended(model1, model2, _).
+
+ModelOverlap(model2, model1) :- ModelOverlap(model2, model1).
 
 TrainingDataWithModel(model, train, invo, meth) :-
     (TrainingData(meth, model_idx, idx),
@@ -628,12 +610,13 @@ ValDataWithModel(testModel2, val, invo2, meth2) :-
     ScoredDataWithModel(testModel, val, invo, meth),
     ScoredDataWithModel(testModel2, val, invo2, meth2),
     invo != invo2,
-    !DataOverlap(testModel, testModel2).
+    !ModelOverlap(testModel, testModel2).
 
+// propagation
 ValDataWithModel(model, test, invo, meth) :-
     ValOrTestDataWithModel(model, test, invo, meth),
     ValDataWithModel(testModel, val, invo, meth),
-    DataOverlap(model, testModel),
+    ModelOverlap(model, testModel),
     DataOverlap(test, val).
 
 TestDataWithModel(model, test, invo, meth) :-
@@ -651,7 +634,7 @@ TrainTestPair(trainModel, train, testModel, test) :-
     TestDataWithModel(testModel, test, _, _),
     TrainingDataWithModel(trainModel, train, _, _),
     !DataOverlap(train, test),
-    DataOverlap(trainModel, testModel).
+    ModelOverlap(testModel, trainModel).
     // train != test, !FlowFrom(test, train, _),
     // (trainModel = testModel; FlowFromExtended(testModel, trainModel, _)). // how to handle model propagation? [TODO]
 
@@ -659,7 +642,7 @@ TrainValPair(trainModel, train, valModel, val) :-
     ValDataWithModel(valModel, val, _, _),
     TrainingDataWithModel(trainModel, train, _, _),
     !DataOverlap(train, val),
-    DataOverlap(trainModel, valModel).
+    ModelOverlap(valModel, trainModel).
     // train != val, !FlowFrom(val, train, _),
     // (trainModel = valModel; FlowFromExtended(valModel, trainModel, _)). 
 
@@ -707,22 +690,22 @@ ReduceEdge(to, from) :-
     TaintStartsTarget(to, from, "rowset").
 
 PreProcessingLeak(src, invo, meth) :-
-    TrainTestPair(trainModel, train, testModel, test),
+    (TrainTestPair(trainModel, train, testModel, test); TrainValPair(trainModel, train, testModel, test)),
     TrainingDataWithModel(trainModel, train, invo, meth),
-    TestDataWithModel(testModel, test, _, _),
+    // TestDataWithModel(testModel, test, _, _),
     ReduceEdge(reduced_from_src, src),
-    FlowFromExtended(train, reduced_from_src, _),
+    (FlowFromExtended(train, reduced_from_src, _); FlowFromExtended(test, reduced_from_src, _)),
     DataOverlap(test, src).
     // (FlowFromExtended(test, src, "data");
     // FlowFromExtended(test, src_equiv, "data"), FlowFromExtended(src, src_equiv, "equiv")).
 
-PreProcessingLeak(src, invo, meth) :-
-    TrainTestPair(trainModel, train, testModel, test),
-    TrainingDataWithModel(trainModel, train, invo, meth),
-    TestDataWithModel(testModel, test, _, _),
-    ReduceEdge(reduced_from_src, src),
-    FlowFromExtended(test, reduced_from_src, _),
-    DataOverlap(test, src).
+// PreProcessingLeak(src, invo, meth) :-
+//     TrainTestPair(trainModel, train, testModel, test),
+//     TrainingDataWithModel(trainModel, train, invo, meth),
+//     TestDataWithModel(testModel, test, _, _),
+//     ReduceEdge(reduced_from_src, src),
+//     FlowFromExtended(test, reduced_from_src, _),
+//     DataOverlap(test, src).
 
 // Overlap detection
 .decl DataOverlap(train:Var, test:Var)
@@ -758,11 +741,11 @@ OverlapLeak(testModel, trainModel, invo, meth) :-
     TestDataWithModel(testModel, test, _, _),
     DataOverlap(train, test).
 
-OverlapLeak(testModel, valModel, invo, meth) :-
-    ValDataWithModel(valModel, val, invo, meth),
-    TestDataWithModel(testModel, test, _, _),
-    DataOverlap(val, test),
-    DataOverlap(testModel, valModel).
+// OverlapLeak(testModel, valModel, invo, meth) :-
+//     ValDataWithModel(valModel, val, invo, meth),
+//     TestDataWithModel(testModel, test, _, _),
+//     DataOverlap(val, test),
+//     DataOverlap(testModel, valModel).
 
 // No Test detection
 .decl NoValAndTestData(trainModel:Var, invo:Invocation, meth:Method)
