@@ -392,21 +392,21 @@ class CodeTransformer(ast.NodeTransformer):
     def visitNameOnly(self, node):
         nodes, newNode = self.visit(node)
         if type(newNode) != ast.Name:
-            new_var = ast.Name(self.FManager.get_new_var())
+            _, new_var = self.visit_Name(ast.Name(self.FManager.get_new_var()), assigned=True)
             return nodes + [ast.Assign([new_var], newNode)], new_var
         return nodes, newNode
 
     def visitNameAndConsOnly(self, node):
         nodes, newNode = self.visit(node)
         if type(newNode) not in [ast.Name, ast.Constant]:
-            new_var = ast.Name(self.FManager.get_new_var())
+            _, new_var = self.visit_Name(ast.Name(self.FManager.get_new_var()), assigned=True)
             return nodes + [ast.Assign([new_var], newNode)], new_var
         return nodes, newNode
     
     def visitNameAndTupleOnly(self, node):
         nodes, newNode = self.visit(node)
         if type(newNode) not in [ast.Name, ast.Tuple]:
-            new_var = ast.Name(self.FManager.get_new_var())
+            _, new_var = self.visit_Name(ast.Name(self.FManager.get_new_var()), assigned=True)
             return nodes + [ast.Assign([new_var], newNode)], new_var
         return nodes, newNode
 
