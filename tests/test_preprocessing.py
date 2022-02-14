@@ -46,18 +46,17 @@ def test_tfidf():
                             'RandomForestRegressor.fit', 'RidgeCV.fit'])
 
 def test_dataFrameMapper():
-    template("nb_132929.py", ["GaussianNB.fit"]) #, "SGDClassifier.fit"])
+    template("nb_132929.py", ["GaussianNB.fit", "SGDClassifier.fit"])
 
 def test_scaler():
-    template("nb_175471.py", []) # "MultinomialNB.fit", "Unknown.fit"
     template("nb_194503.py", ["Model.fit"])
-    template("nb_273933.py", ["Unknown.fit"]) # , "KNeighborsClassifier.fit"]) [context-insensitivity]
-    template("nb_362989.py", ["GaussianNB.fit"]) # "SGDClassifier.fit"
-    template("nb_292583.py", ["GridSearchCV.fit", "AdaBoostClassifier.fit", "Any | Unknown | type.fit"]) # "Unknown.fit", 
+    template("nb_273933.py", []) # "Unknown.fit"]) , "KNeighborsClassifier.fit"]) [context-insensitivity]
+    template("nb_362989.py", ["GaussianNB.fit", "SGDClassifier.fit"])
+    template("nb_292583.py", ["GridSearchCV.fit", "AdaBoostClassifier.fit", "Any | Unknown | type.fit", "Unknown.fit"]) 
     template("nb_473437.py", [])
 
 def test_pca():
-    template("nb_205857.py", ["KMeans.fit", "RandomForestClassifier.fit"]) #, "Unknown.fit"]) 
+    template("nb_205857.py", ["KMeans.fit", "RandomForestClassifier.fit", "Unknown.fit"]) 
     template("nb_471253.py", [])
 
 def test_countvec():
@@ -74,14 +73,15 @@ def test_feature_selection():
 def test_applymap():
     template("nb_344814.py", ["LogisticRegression.fit"])
 
-# def test_equiv_edge():
-#     template("nb_282393.py", ["Unbound | Sequential.fit_generator", "Sequential.fit_generator"])
+def test_equiv_edge():
+    template("nb_282393.py", ["Unbound | Sequential.fit_generator", "Sequential.fit_generator"])
 
-# def test_loop():
-#     template("nb_248151.py", ["Unknown.fit"]) 
+def test_loop():
+    template("nb_175471.py", ["MultinomialNB.fit"]) # , "Unknown.fit"]) [could not handle indexing]
+    template("nb_248151.py", ["Unknown.fit"]) 
 
 def test_classdef():
-    template("nb_424904.py", []) 
+    template("nb_424904.py", ['Unknown | type.fit']) 
 
 def test_funcdef():
     template("nb_481597.py", ["RandomForestRegressor.fit"]) 
