@@ -29,3 +29,16 @@ def template(test_file, taintMethods):
 def test_basic():
     template("testOversampler.py", ["HistGradientBoostingClassifier.fit"])
     template("testOversampler2.py", [])
+
+def test_smote():
+    template("yogmoh_news-category.py", ["RandomForestClassifier.fit", "Unknown.fit", "XGBClassifier.fit"])
+
+def test_advanced():
+    template("dktalaicha_credit-card-fraud-detection-using-smote-adasyn.py", ["LogisticRegression.fit"])
+    template("nb_598984.py",[])
+
+def test_funcdef():
+    template("shahules_tackling-class-imbalance.py", ["LogisticRegression.fit"])
+
+
+
