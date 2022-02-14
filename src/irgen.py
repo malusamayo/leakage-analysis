@@ -457,6 +457,22 @@ class CodeTransformer(ast.NodeTransformer):
             new_values.append(new_v)
         return nodes, ast.Dict(new_keys, new_values)
 
+    def visit_FormattedValue(self, node):
+        nodes, new_v = self.visitNameAndConsOnly(node.value)
+        nodes1, new_f = [], node.format_spec
+        if node.format_spec:
+            nodes1, new_f = self.visit(node.format_spec)
+        return nodes + nodes1, ast.FormattedValue(new_v, node.conversion, new_f)
+
+    def visit_JoinedStr(self, node):
+        nodes = []
+        new_values = []
+        for v in node.values:
+            newNodes, new_v = self.visit(v)
+            nodes += newNodes
+            new_values.append(new_v)
+        return nodes, ast.JoinedStr(new_values)
+    
     # keep exprs below unchanged (for now)
     def visit_ListComp(self, node):
         return [], node
@@ -471,12 +487,6 @@ class CodeTransformer(ast.NodeTransformer):
         return [], node
 
     def visit_comprehension(self, node):
-        return [], node
-
-    def visit_FormattedValue(self, node):
-        return [], node
-
-    def visit_JoinedStr(self, node):
         return [], node
 
     def visit_NamedExpr(self, node):

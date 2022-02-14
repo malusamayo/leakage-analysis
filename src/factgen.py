@@ -302,6 +302,8 @@ class FactGenerator(ast.NodeVisitor):
             self.FManager.add_fact("AssignVar", (target_name, value.test.id))
             self.FManager.add_fact("AssignVar", (target_name, value.body.id))
             self.FManager.add_fact("AssignVar", (target_name, value.orelse.id))
+        elif type(value) == ast.JoinedStr:
+            self.FManager.add_fact("AssignStrConstant", (target_name, "str_placeholder"))
         else:
             print("Unkown source type! " + str(type(value)))
             assert 0
