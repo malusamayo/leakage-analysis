@@ -215,6 +215,12 @@ class CodeTransformer(ast.NodeTransformer):
         rets = self.generic_visit(node)
         if len(rets.value) == 2:
             assert type(rets.value[0]) == list
+            if type(rets.value[1]) == ast.Call:
+                call = rets.value[1]
+                if type(call.func) == ast.Attribute and call.func.attr == "fit":
+                    assert type(call.func.value) == ast.Name
+                    nodes, new_base = self.visit_Name(call.func.value, assigned=True)
+                    return rets.value[0] + nodes + [ast.Assign([new_base], call)]
             return rets.value[0] + [ast.Expr(rets.value[1])]
         return rets
 
