@@ -355,9 +355,16 @@ class FactGenerator(ast.NodeVisitor):
             hasInnerCall = self.visit_Attribute(node.func, cur_invo=cur_invo)
             if hasInnerCall:
                 new_invo = self.FManager.get_new_invo()
-                assert type(node.args[0]) == ast.Name
+                func_name = ""
+                for kw in node.keywords:
+                    if kw.arg == "func":
+                        assert type(kw.value) == ast.Name
+                        func_name = kw.value.id
+                if func_name == "":
+                    assert type(node.args[0]) == ast.Name
+                    func_name = node.args[0].id
                 self.meth2invokes[self.get_cur_sig()].append(new_invo)
-                self.FManager.add_fact("CallGraphEdge", (new_invo, node.args[0].id))
+                self.FManager.add_fact("CallGraphEdge", (new_invo, func_name))
                 if self.in_loop:
                     self.add_loop_facts(new_invo, node.args[0].id)
                 self.FManager.add_fact("ActualParam", (1, new_invo, node.func.value.id))
