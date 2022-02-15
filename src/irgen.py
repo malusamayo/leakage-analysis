@@ -174,16 +174,14 @@ class CodeTransformer(ast.NodeTransformer):
         return [], node
 
     def visit_With(self, node):
-        # rough translation, not accurate
         nodes = []
         for item in node.items:
+            nodes1, item.context_expr = self.visit(item.context_expr)
+            nodes += nodes1
             if item.optional_vars:
                 nodes += self.visit(ast.Assign([item.optional_vars], item.context_expr))
-            else:
-                nodes1, new_node = self.visit(item.context_expr)
-                nodes += nodes1 + [new_node]
-        nodes += self.visit_Body(node.body)
-        return nodes
+        node.body = self.visit_Body(node.body)
+        return nodes, node
 
     # ignore pattern matching for now
 
