@@ -240,6 +240,11 @@ class CodeTransformer(ast.NodeTransformer):
         nodes = []
         if type(target) == ast.Name:
             nodes += self.handle_assign_value(target, value)
+        elif type(target) == ast.Starred:
+            nodes1, new_target = self.visit(target)
+            nodes += nodes1
+            nodes += self.handle_assign_value(new_target.value, value)
+            nodes[-1].targets[0] = new_target
         elif type(target) in [ast.Attribute, ast.Subscript]:
             nodes1, new_target = self.visit(target)
             nodes2, new_value = self.visitNameOnly(value)

@@ -312,6 +312,8 @@ class FactGenerator(ast.NodeVisitor):
         for target in node.targets:
             if type(target) == ast.Name:
                 self.handle_assign_value(target, node.value)
+            elif type(target) == ast.Starred:
+                self.handle_assign_value(target.value, node.value)
             elif type(target) == ast.Attribute:
                 assert type(target.value) == ast.Name
                 assert type(node.value) == ast.Name
