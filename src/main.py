@@ -21,7 +21,11 @@ def remove_files(folder):
 def load_input(input_path):
     with open(input_path) as f:
         code = f.read()
-    tree = ast.parse(code)
+    try:
+        tree = ast.parse(code)
+    except:
+        print("Failed to parse " + input_path)
+        exit(37)
     return tree
 
 def ir_transform(tree, ir_path):
