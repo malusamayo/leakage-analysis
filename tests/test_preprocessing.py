@@ -35,7 +35,7 @@ def test_basic():
 
 def test_fillna():
     template("titanic0.py", ["LogisticRegression.fit"])
-    template("nb_344873.py", ["Sequential.fit", "LassoCV.fit", "Unknown.fit"])
+    template("nb_344873.py", ["Sequential.fit", "LassoCV.fit", "XGBRegressor.fit"])
     
 
 def test_tfidf():
