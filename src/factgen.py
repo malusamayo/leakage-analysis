@@ -113,6 +113,7 @@ class FactGenerator(ast.NodeVisitor):
     def load_type_map(self, json_path):
         with open(json_path) as f:
             self.type_map = json.load(f) 
+        self.type_map.update({'set':['module', 'set'],
 
     def import_map_get(self, key):
         if key in self.import_map:
