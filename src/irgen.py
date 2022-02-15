@@ -60,9 +60,13 @@ class CodeTransformer(ast.NodeTransformer):
 
     def visit_ClassDef(self, node):
         self.scopeManager.enterNamedBlock(node.name)
+        nodes = []
+        for i, base in enumerate(node.bases):
+            nodes1, node.bases[i] = self.visit(base)
+            nodes += nodes1
         node.body = self.visit_Body(node.body)
         self.scopeManager.leaveNamedBlock()
-        return node
+        return nodes, node
 
     def visit_FunctionDef(self, node):
         self.scopeManager.enterNamedBlock(node.name)
