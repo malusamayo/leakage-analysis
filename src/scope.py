@@ -177,9 +177,10 @@ class ScopeManager(object):
             local_map[arg.arg] = new_name
             arg.arg = new_name
         if args.kwarg:
-            arg = args.vararg
+            arg = args.kwarg
             new_name = self.getName(arg.arg, assigned=True, _ctx = self.get_tmp_new_ctx())
             local_map[arg.arg] = new_name
+            local_map["$kwarg"] = True
             arg.arg = new_name
         self.arg_map['.'.join(self.named_ctx)] = local_map
 
@@ -187,6 +188,9 @@ class ScopeManager(object):
     def get_mapped_arg(self, func_node, arg):
         # do not consider class member now [TODO]
         if type(func_node) == ast.Name and func_node.id in self.arg_map:
-            new_arg = self.arg_map[func_node.id][arg]
+            if arg in self.arg_map[func_node.id]:
+                new_arg = self.arg_map[func_node.id][arg]
+            elif "$kwarg" in self.arg_map[func_node.id]:
+                new_arg = arg
             return new_arg
         return arg
