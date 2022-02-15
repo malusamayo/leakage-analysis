@@ -84,19 +84,22 @@ class CodeTransformer(ast.NodeTransformer):
         return [ast.FunctionDef(func_name, node.args, nodes, [])], ast.Name(func_name)
 
     def visit_Return(self, node):
-        nodes1, newValue = self.visitNameAndTupleOnly(node.value)
-        node.value = newValue
-        return nodes1 + [node]
+        nodes1 = []
+        if node.value:
+            nodes1, node.value = self.visitNameAndTupleOnly(node.value)
+        return nodes1, node
     
     def visit_Yield(self, node):
-        nodes1, newValue = self.visitNameAndTupleOnly(node.value)
-        node.value = newValue
-        return nodes1 + [node]
+        nodes1 = []
+        if node.value:
+            nodes1, node.value = self.visitNameAndTupleOnly(node.value)
+        return nodes1, node
 
     def visit_YieldFrom(self, node):
-        nodes1, newValue = self.visitNameAndTupleOnly(node.value)
-        node.value = newValue
-        return nodes1 + [node]
+        nodes1 = []
+        if node.value:
+            nodes1, node.value = self.visitNameAndTupleOnly(node.value)
+        return nodes1, [node]
 
     def visit_For(self, node):
         nodes, node.iter = self.visitNameOnly(node.iter)
@@ -434,7 +437,7 @@ class CodeTransformer(ast.NodeTransformer):
         nodes = []
         new_tuple = []
         for v in node.elts:
-            newNodes, new_v = self.visitNameAndConsOnly(v)
+            newNodes, new_v = self.visitNameOnly(v)
             nodes += newNodes
             new_tuple.append(new_v)
         return nodes, ast.Tuple(new_tuple)
