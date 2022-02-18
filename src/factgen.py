@@ -112,6 +112,7 @@ class FactGenerator(ast.NodeVisitor):
         self.meth2invokes = defaultdict(list)
         self.meth_in_loop = set()
         self.in_loop = False
+        self.in_class = False
     
     def load_type_map(self, json_path):
         with open(json_path) as f:
@@ -154,8 +155,10 @@ class FactGenerator(ast.NodeVisitor):
 
     def visit_ClassDef(self, node):
         self.scope_stack.append(node.name)
+        self.in_class = True
         self.FManager.add_fact("LocalClass", (node.name,))
         ret = ast.NodeTransformer.generic_visit(self, node)
+        self.in_class = False
         self.scope_stack.pop()
         return ret
 
@@ -164,14 +167,21 @@ class FactGenerator(ast.NodeVisitor):
         self.FManager.add_fact("LocalMethod", (node.name,))
         if len(self.scope_stack) > 2:
             self.FManager.add_fact("LocalMethod", ('.'.join(self.scope_stack[1:]),))
+        
+        meth = node.name
+        if self.in_class:
+            meth = '.'.join(self.scope_stack[1:])
+            if node.name == "__init__":
+                meth = '.'.join(self.scope_stack[1:-1])
         for i, arg in enumerate(node.args.args):
-            self.FManager.add_fact("FormalParam", (i+1, node.name, arg.arg))
-            if len(self.scope_stack) > 2:
-                meth = '.'.join(self.scope_stack[1:])
-                if node.name == "__init__":
-                    meth = '.'.join(self.scope_stack[1:-1])
+            if self.in_class:
+                self.FManager.add_fact("FormalParam", (i, meth, arg.arg))
+            else:
                 self.FManager.add_fact("FormalParam", (i+1, meth, arg.arg))
         ret = ast.NodeTransformer.generic_visit(self, node)
+        if self.in_class and node.name == "__init__":
+            self.FManager.add_fact("Alloc", (node.args.args[0].arg, self.FManager.get_new_heap()))
+            self.FManager.add_fact("FormalReturn", (0, meth, node.args.args[0].arg))
         self.scope_stack.pop()
         return ret
     
