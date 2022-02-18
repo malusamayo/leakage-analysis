@@ -260,7 +260,7 @@ ParamToRetTaintSourceMethod(0, 1, "ImageDataGenerator.flow", "dup").
 // oversampling leak
 ParamToRetTaintSourceMethod(0, 1, meth, "dup")  :-
     CallGraphEdge(_, meth),
-    match("(RandomOverSampler|SMOTE|SMOTENC|SMOTEN|ADASYN|BorderlineSMOTE|KMeansSMOTE|SVMSMOTE)[.]fit_resample", meth).
+    match("(RandomOverSampler|SMOTE|SMOTENC|SMOTEN|ADASYN|BorderlineSMOTE|KMeansSMOTE|SVMSMOTE|SMOTEENN|SMOTETomek)[.]fit_resample", meth).
 
 // train/test locations
 .decl TrainingData(method:Method, model_idx:number, data_index:number)
@@ -311,7 +311,7 @@ FilteredTrainingMethod(meth) :-
     (match("(GenericUnivariateSelect|SelectPercentile|SelectKBest|SelectFpr|SelectFdr|SelectFromModel|SelectFwe|SequentialFeatureSelector|RFE|RFECV|VarianceThreshold)[.]fit", meth);
     match("(CountVectorizer|HashingVectorizer|TfidfTransformer|TfidfVectorizer|PCA)[.]fit", meth);
     match("(Imputer|SimpleImputer|IterativeImputer|KNNImputer)[.]fit", meth);
-    match("(KBinsDiscretizer|PowerTransformer|QuantileTransformer|MaxAbsScaler|StandardScaler|MinMaxScaler|RobustScaler)[.]fit", meth)).
+    match("(FunctionTransformer|KBinsDiscretizer|KernelCenterer|LabelBinarizer|LabelEncoder|MultiLabelBinarizer|MaxAbsScaler|MinMaxScaler|Normalizer|OneHotEncoder|OrdinalEncoder|PolynomialFeatures|PowerTransformer|QuantileTransformer|RobustScaler|SplineTransformer|StandardScaler)[.]fit", meth)).
  
 
 // ---- pointer analysis ----
@@ -513,6 +513,7 @@ NonDataTransferEdge(to, from) :-
 
 FlowFromEdge(to, from, "data") :-
     !NonDataTransferEdge(to, from),
+    !IsModel(to), !IsModel(from), 
     FlowFromEdge(to, from, "normal").
 
 FlowFrom(to, from, tag) :-
@@ -527,11 +528,14 @@ FlowFromExtended(to, from, tag) :-
     FlowFrom(to, from, tag).
 
 FlowFromExtended(to, from, "data"),
-FlowFromExtended(to, from, "equiv"),
+FlowFromExtended(to, from, "equiv") :-
+    VarPointsTo(to, value),
+    VarPointsTo(from, value),
+    !IsModel(to), !IsModel(from).
+
 FlowFromExtended(to, from, "normal") :-
     VarPointsTo(to, value),
     VarPointsTo(from, value).
-
 
 // FlowFromExtended(to, from, "data"),
 // FlowFromExtended(to, from, "equiv"),
@@ -797,6 +801,7 @@ MultiUseTestLeak(test, invo, meth) :-
 // [TODO] separate validation/test, detect test multi-use
 
 .output TrainTestPair
+.output TrainValPair
 .output TestDataWithModel
 .output ValDataWithModel
 .output ScoredDataWithModel
