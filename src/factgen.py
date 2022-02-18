@@ -22,10 +22,13 @@ class FactManager(object):
             "AssignUnaryOp": [],
             "LoadField": [],
             "StoreField": [],
+            "StoreFieldSSA": [],
             "LoadIndex": [],
             "StoreIndex": [],
+            "StoreIndexSSA": [],
             "LoadSlice": [],
             "StoreSlice": [],
+            "StoreSliceSSA": [],
             "Invoke": [],
             "CallGraphEdge": [],
             "ActualParam": [],
@@ -219,6 +222,22 @@ class FactGenerator(ast.NodeVisitor):
         if type(value) == ast.Name:
             self.FManager.add_fact("AssignVar", (target_name, value.id))
         elif type(value) == ast.Call:
+            # handle field/index SSA method
+            if type(value.func) == ast.Name and value.func.id in ["set_field_wrapper", "set_index_wrapper", "set_slice_wrapper"]:
+                if value.func.id == "set_field_wrapper":
+                    self.FManager.add_fact("StoreFieldSSA", (target_name, value.args[0].id, value.args[1].value, value.args[2].id))
+                elif value.func.id == "set_index_wrapper":
+                    slice = value.args[1]
+                    if type(slice) == ast.Index:
+                        assert type(slice.value) == ast.Name
+                        self.FManager.add_fact("StoreIndexSSA", (target_name, value.args[0].id, slice.value.id, value.args[2].id))
+                    elif type(slice) == ast.Slice:
+                        self.FManager.add_fact("StoreSliceSSA", (target_name, value.args[0].id, slice.lower, slice.upper, slice.step, value.args[4].id))
+                    elif type(slice) == ast.ExtSlice:
+                        self.FManager.add_fact("StoreIndexSSA", (target_name, value.args[0].id, "slice_placeholder", value.args[2].id))
+                    else:
+                        assert False, "Unknown slice!"
+                return
             cur_invo = self.visit_Call(value)
             self.FManager.add_fact("ActualReturn", (0, cur_invo, target_name))
             self.FManager.add_fact("Alloc", (target_name, self.FManager.get_new_heap()))
@@ -321,10 +340,12 @@ class FactGenerator(ast.NodeVisitor):
             elif type(target) == ast.Starred:
                 self.handle_assign_value(target.value, node.value)
             elif type(target) == ast.Attribute:
+                assert False, "Case deprecated!"
                 assert type(target.value) == ast.Name
                 assert type(node.value) == ast.Name
                 self.FManager.add_fact("StoreField", (target.value.id, target.attr, node.value.id))
             elif type(target) == ast.Subscript:
+                assert False, "Case deprecated!"
                 assert type(target.value) == ast.Name
                 assert type(node.value) == ast.Name
                 if type(target.slice) == ast.ExtSlice:
@@ -344,8 +365,7 @@ class FactGenerator(ast.NodeVisitor):
                     self.FManager.add_fact("ActualReturn", (i, cur_invo, t.id))
                     self.FManager.add_fact("Alloc", (t.id, self.FManager.get_new_heap()))
             else:
-                print("Unkown target type! " + str(type(target)))
-                assert 0
+                assert False, "Unkown target type! " + str(type(target))
 
         return node
     

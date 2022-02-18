@@ -12,6 +12,12 @@ def __phi__(phi_0, phi_1):
     if phi_0:
         return phi_0 
     return phi_1
+def set_field_wrapper(base, attr, value):
+    setattr(base, attr, value)
+    return base
+def set_index_wrapper(base, attr, value):
+    setattr(base, attr, value)
+    return base
 
 '''
 
@@ -253,9 +259,14 @@ class CodeTransformer(ast.NodeTransformer):
         elif type(target) in [ast.Attribute, ast.Subscript]:
             nodes1, new_target = self.visit(target)
             nodes2, new_value = self.visitNameOnly(value)
-            nodes = nodes + nodes1 + nodes2 + [ast.Assign([new_target], new_value)]
+            new_attr = ast.Constant(new_target.attr, "") if type(new_target) == ast.Attribute else new_target.slice 
+            _, new_name = self.visit_Name(target.value if type(target.value) == ast.Name else new_target.value, assigned=True)
+            func = ast.Name("set_field_wrapper") if type(new_target) == ast.Attribute else ast.Name("set_index_wrapper")
+            new_assign = [ast.Assign([new_name], ast.Call(func, [new_target.value, new_attr, new_value], []))]
+            # new_assign = [ast.Assign([new_target], new_value)]
+            nodes = nodes + nodes1 + nodes2 + new_assign # [ast.Assign([new_target], new_value)]
         elif type(target) in [ast.Tuple, ast.List]:
-            if type(value) == ast.Tuple and len(target.elts) == len(value.elts):
+            if type(value) in [ast.Tuple, ast.List] and len(target.elts) == len(value.elts):
                 new_vars = []
                 for v in value.elts:
                     nodes1, new_v = self.visitNameOnly(v)

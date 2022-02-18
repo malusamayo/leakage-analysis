@@ -22,7 +22,11 @@
 .decl LoadIndex(to:Var, base:Var, i:Index)
 .decl StoreIndex(base:Var, i:Index, from:Var)
 .decl LoadSlice(to:Var, base:Var, st:Var, ed:Var, step:Var)
-.decl StoreSlice(to:Var, st:Var, ed:Var, step:Var, base:Var)
+.decl StoreSlice(base:Var, st:Var, ed:Var, step:Var, from:Var)
+
+.decl StoreFieldSSA(new_base:Var, base:Var, f:Field, from:Var)
+.decl StoreIndexSSA(new_base:Var, base:Var, i:Index, from:Var)
+.decl StoreSliceSSA(new_base:Var, base:Var, st:Var, ed:Var, step:Var, from:Var)
 
 // inter-procedural facts
 // .decl Invoke(invo:Invocation)
@@ -52,6 +56,9 @@
 .input StoreIndex
 .input LoadSlice
 .input StoreSlice
+.input StoreIndexSSA
+.input StoreFieldSSA
+.input StoreSliceSSA
 
 .input ActualParam
 .input FormalParam
@@ -339,17 +346,25 @@ VarPointsTo(to, value) :-
 VarPointsTo(to, value) :- 
     LoadIndex(to, base, idx),
     VarPointsTo(base, baseValue),
-    IndexContentPointsTo(baseValue, idx, value).    
+    IndexContentPointsTo(baseValue, idx, value).
+VarPointsTo(new_base, baseValue) :- 
+    (StoreIndexSSA(new_base, base, _, _); StoreFieldSSA(new_base, base, _, _)),
+    VarPointsTo(base, baseValue).
 IndexContentPointsTo(baseValue, idx, value) :- 
     StoreIndex(base, idx, from),
     VarPointsTo(base, baseValue),
     VarPointsTo(from, value).
+IndexContentPointsTo(baseValue, idx, value) :- 
+    StoreIndexSSA(new_base, base, idx, from),
+    VarPointsTo(base, baseValue),
+    VarPointsTo(from, value).
+
 VarPointsTo(to, value) :- 
     LoadField(to, base, _),
     VarPointsTo(base, value).
-// VarPointsTo(base, value) :- 
-//     StoreField(base, _, from),
-//     VarPointsTo(from, value).
+// FieldPointsTo(base, fld, value) :-
+//     value = ValueIdMacro(ValueIdMacro("$heap", base), fld),
+//     LoadField(to, base, fld).
 VarPointsTo(to, value) :- 
     LoadField(to, base, fld),
     VarPointsTo(base, baseValue),
@@ -358,7 +373,10 @@ FieldPointsTo(baseValue, fld, value) :-
     StoreField(base, fld, from),
     VarPointsTo(base, baseValue),
     VarPointsTo(from, value).
-
+FieldPointsTo(baseValue, fld, value) :-
+    StoreFieldSSA(new_base, base, fld, from),
+    VarPointsTo(base, baseValue),
+    VarPointsTo(from, value).
 
 // we always allocate new values for slice reference
 // therefore we should propagate the new value back
@@ -439,11 +457,16 @@ FlowFromEdge(to, from, "normal") :-
 
 FlowFromEdge(to, from, "normal") :-
     InterProcAssign(to, from); AssignVar(to, from); LoadIndex(to, from, _); StoreIndex(to, _, from); 
-    LoadField(to, from, _); StoreField(to, _, from); LoadSlice(to, from, _, _, _).
+    LoadField(to, from, _); StoreField(to, _, from); LoadSlice(to, from, _, _, _); StoreSlice(to, _, _, _, from);
+    StoreIndexSSA(to, _, _, from); StoreFieldSSA(to, _, _, from); StoreSliceSSA(to, _, _, _, _, from);
+    StoreIndexSSA(to, from, _, _); StoreFieldSSA(to, from, _, _); StoreSliceSSA(to, from, _, _, _, _).
 
 FlowFromEdge(to, left, "normal"),
 FlowFromEdge(to, right, "normal") :-
     AssignBinOp(to, left, _, right).
+
+FlowFromEdge(to, from, "equiv") :-
+    StoreIndexSSA(to, from, _, _); StoreFieldSSA(to, from, _, _); StoreSliceSSA(to, from, _, _, _, _).
 
 FlowFromEdge(to, from, "equiv") :-
     InterProcAssign(to, from); AssignVar(to, from).
