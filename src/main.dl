@@ -41,6 +41,8 @@
 .decl VarType(var:Var, type:Type)
 .decl Alloc(var:Var, value:Value)
 .decl LocalMethod(meth:Method)
+.decl FilteredMethod(meth:Method)
+.decl PureMethod(meth:Method)
 .decl LocalClass(cls:Type)
 .decl InvokeInLoop(invo:Invocation)
 
@@ -88,6 +90,13 @@
 // .decl ParamToRetSubsetMethod(to:number, from:number, method:Method)
 // .decl ParamToRetEquivMethod(to:number, from:number, method:Method)
 
+FilteredMethod(meth) :-
+    meth = "__phi__"; meth = "set_field_wrapper";
+    meth = "set_index_wrapper"; meth = "set_slice_wrapper".
+
+PureMethod(meth) :-
+    meth = "len".
+
 // Constant Propagation
 .decl ConstantValue(var:Var, constant:symbol)
 .decl VarEquals(var1:Var, var2:Var)
@@ -119,7 +128,7 @@ VarEquals(var1, var2) :-
 VarEquals(var1, var2) :-
     CallGraphEdge(invo1, meth), ActualParam(1, invo1, param1), ActualReturn(0, invo1, var1),
     CallGraphEdge(invo2, meth), ActualParam(1, invo2, param2), ActualReturn(0, invo2, var2),
-    meth = "len",
+    PureMethod(meth),
     VarEquals(param1, param2).
 
 
@@ -398,19 +407,19 @@ IndexContentPointsTo(baseValue, idx, value) :-
 
 InterProcAssign(to, from) :-
     CallGraphEdge(invo, meth),
-    meth != "__phi__",
+    !FilteredMethod(meth),
     FormalParam(index, meth, to),
     ActualParam(index, invo, from).
 
 InterProcAssign(to, from) :-
     CallGraphEdge(invo, meth),
-    meth != "__phi__",
+    !FilteredMethod(meth),
     FormalParam(_, meth, to),
     ActualKeyParam(to, invo, from).
 
 InterProcAssign(to, from) :-
     CallGraphEdge(invo, meth),
-    meth != "__phi__",
+    !FilteredMethod(meth),
     FormalReturn(index, meth, from),
     ActualReturn(index, invo, to).
 
