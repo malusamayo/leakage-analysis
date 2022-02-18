@@ -162,17 +162,18 @@ class FactGenerator(ast.NodeVisitor):
         self.scope_stack.pop()
         return ret
 
-    def visit_FunctionDef(self, node, inClass=False):
+    def visit_FunctionDef(self, node):
         self.scope_stack.append(node.name)
-        self.FManager.add_fact("LocalMethod", (node.name,))
-        if len(self.scope_stack) > 2:
-            self.FManager.add_fact("LocalMethod", ('.'.join(self.scope_stack[1:]),))
+        self.FManager.add_fact("LocalMethod", (self.get_cur_sig(),))
+        # if len(self.scope_stack) > 2:
+        #     self.FManager.add_fact("LocalMethod", ('.'.join(self.scope_stack[1:]),))
         
-        meth = node.name
-        if self.in_class:
-            meth = '.'.join(self.scope_stack[1:])
-            if node.name == "__init__":
-                meth = '.'.join(self.scope_stack[1:-1])
+        # meth = node.name
+        meth = self.get_cur_sig()
+        # if self.in_class:
+        #     meth = '.'.join(self.scope_stack[1:])
+        #     if node.name == "__init__":
+        #         meth = '.'.join(self.scope_stack[1:-1])
         for i, arg in enumerate(node.args.args):
             if self.in_class:
                 self.FManager.add_fact("FormalParam", (i, meth, arg.arg))
@@ -208,22 +209,22 @@ class FactGenerator(ast.NodeVisitor):
         self.in_loop = False
         return ret
     
-    def visit_Return(self, node, inClass=False):
+    def visit_Return(self, node):
         if type(node.value) == ast.Name:
-            self.FManager.add_fact("FormalReturn", (0, self.scope_stack[-1], node.value.id))
+            self.FManager.add_fact("FormalReturn", (0, self.get_cur_sig(), node.value.id))
         elif type(node.value) == ast.Tuple:
             for i, x in enumerate(node.value.elts):
                 assert type(x) == ast.Name
-                self.FManager.add_fact("FormalReturn", (i, self.scope_stack[-1], x.id))
+                self.FManager.add_fact("FormalReturn", (i, self.get_cur_sig(), x.id))
         return ast.NodeTransformer.generic_visit(self, node)
     
-    def visit_Yield(self, node, inClass=False):
+    def visit_Yield(self, node):
         if type(node.value) == ast.Name:
-            self.FManager.add_fact("FormalReturn", (0, self.scope_stack[-1], node.value.id))
+            self.FManager.add_fact("FormalReturn", (0, self.get_cur_sig(), node.value.id))
         elif type(node.value) == ast.Tuple:
             for i, x in enumerate(node.value.elts):
                 assert type(x) == ast.Name
-                self.FManager.add_fact("FormalReturn", (i, self.scope_stack[-1], x.id))
+                self.FManager.add_fact("FormalReturn", (i, self.get_cur_sig(), x.id))
         return ast.NodeTransformer.generic_visit(self, node)
 
     def handle_assign_value(self, target, value):
@@ -400,13 +401,13 @@ class FactGenerator(ast.NodeVisitor):
                     assert type(node.args[0]) == ast.Name
                     func_name = node.args[0].id
                 self.meth2invokes[self.get_cur_sig()].append(new_invo)
-                self.FManager.add_fact("CallGraphEdge", (new_invo, func_name))
+                self.FManager.add_fact("Invoke", (new_invo, func_name, self.get_cur_sig()))
                 if self.in_loop:
                     self.add_loop_facts(new_invo, node.args[0].id)
                 self.FManager.add_fact("ActualParam", (1, new_invo, node.func.value.id))
                 self.FManager.add_fact("ActualReturn", (0, new_invo, node.func.value.id))
         elif type(node.func) == ast.Name:
-            self.FManager.add_fact("CallGraphEdge", (cur_invo, node.func.id))
+            self.FManager.add_fact("Invoke", (cur_invo, node.func.id, self.get_cur_sig()))
             if self.in_loop:
                 self.add_loop_facts(cur_invo, node.func.id)
         else:
@@ -423,7 +424,7 @@ class FactGenerator(ast.NodeVisitor):
             method_sig = ".".join([value_type[1].replace('Self@', ''), node.attr])
             if value_type[0] == "var":
                 self.FManager.add_fact("ActualParam", (0, cur_invo, node.value.id))
-            self.FManager.add_fact("CallGraphEdge", (cur_invo, method_sig))
+            self.FManager.add_fact("Invoke", (cur_invo, method_sig, self.get_cur_sig()))
             if self.in_loop:
                 self.add_loop_facts(cur_invo, method_sig)
             if method_sig in ["pandas.Series.map", "pandas.Series.apply", "pandas.DataFrame.apply", "FrameOrSeries.apply",  "pandas.DataFrame.applymap"]:
