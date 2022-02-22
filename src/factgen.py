@@ -13,6 +13,7 @@ class FactManager(object):
         self.heap_num = 0
         self.datalog_facts = {
             "AssignVar": [],
+            "AssignGlobal": [],
             "AssignStrConstant": [],
             "AssignBoolConstant": [],
             "AssignBool": [],
@@ -34,10 +35,10 @@ class FactManager(object):
             "ActualParam": [],
             "ActualKeyParam": [], 
             "FormalParam": [],
-            # "FormalKeyParam": [],
             "ActualReturn": [],
             "FormalReturn": [],
             # "MethodUpdate": [],
+            "VarInMethod": [],
             "Alloc": [],
             "LocalMethod": [],
             "LocalClass": [],
@@ -113,6 +114,7 @@ class FactGenerator(ast.NodeVisitor):
         self.meth_in_loop = set()
         self.in_loop = False
         self.in_class = False
+        self.injected_methods = ["__phi__", "set_field_wrapper", "set_index_wrapper", "global_wrapper"]
     
     def load_type_map(self, json_path):
         with open(json_path) as f:
@@ -133,6 +135,9 @@ class FactGenerator(ast.NodeVisitor):
         if self.scope_stack[-1] == "__init__":
             return '.'.join(self.scope_stack[1:-1])
         return '.'.join(self.scope_stack[1:])
+    
+    def mark_localvars(self, varname):
+        self.FManager.add_fact("VarInMethod", (varname, self.get_cur_sig()))
 
     def mark_loopcalls(self):
         for meth_name in self.meth_in_loop:
@@ -175,13 +180,14 @@ class FactGenerator(ast.NodeVisitor):
         #     if node.name == "__init__":
         #         meth = '.'.join(self.scope_stack[1:-1])
         for i, arg in enumerate(node.args.args):
+            self.mark_localvars(arg.arg)
             if self.in_class:
                 self.FManager.add_fact("FormalParam", (i, meth, arg.arg))
             else:
                 self.FManager.add_fact("FormalParam", (i+1, meth, arg.arg))
         ret = ast.NodeTransformer.generic_visit(self, node)
         if self.in_class and node.name == "__init__":
-            self.FManager.add_fact("Alloc", (node.args.args[0].arg, self.FManager.get_new_heap()))
+            self.FManager.add_fact("Alloc", (node.args.args[0].arg, self.FManager.get_new_heap(), self.get_cur_sig()))
             self.FManager.add_fact("FormalReturn", (0, meth, node.args.args[0].arg))
         self.scope_stack.pop()
         return ret
@@ -192,6 +198,7 @@ class FactGenerator(ast.NodeVisitor):
         def visit_Iter(target, iter_id):
             for i, x in enumerate(target.elts):
                 if type(x) == ast.Name:
+                    self.mark_localvars(x.id)
                     self.FManager.add_fact("LoadIndex", (x.id, iter_id, "index_placeholder"))
                 elif type(x) in [ast.Tuple, ast.List]:
                     visit_Iter(x, iter_id)
@@ -199,6 +206,7 @@ class FactGenerator(ast.NodeVisitor):
                     assert 0
 
         if type(node.target) == ast.Name:
+            self.mark_localvars(node.target.id)
             self.FManager.add_fact("LoadIndex", (node.target.id, node.iter.id, "index_placeholder"))
         elif type(node.target) in [ast.Tuple, ast.List]:
             visit_Iter(node.target, node.iter.id)
@@ -230,11 +238,12 @@ class FactGenerator(ast.NodeVisitor):
     def handle_assign_value(self, target, value):
         assert(type(target) == ast.Name)
         target_name = target.id
+        self.mark_localvars(target_name)
         if type(value) == ast.Name:
             self.FManager.add_fact("AssignVar", (target_name, value.id))
         elif type(value) == ast.Call:
-            # handle field/index SSA method
-            if type(value.func) == ast.Name and value.func.id in ["set_field_wrapper", "set_index_wrapper", "set_slice_wrapper"]:
+            # handle injected method
+            if type(value.func) == ast.Name and value.func.id in self.injected_methods:
                 if value.func.id == "set_field_wrapper":
                     self.FManager.add_fact("StoreFieldSSA", (target_name, value.args[0].id, value.args[1].value, value.args[2].id))
                 elif value.func.id == "set_index_wrapper":
@@ -248,10 +257,15 @@ class FactGenerator(ast.NodeVisitor):
                         self.FManager.add_fact("StoreIndexSSA", (target_name, value.args[0].id, "slice_placeholder", value.args[2].id))
                     else:
                         assert False, "Unknown slice!"
+                elif value.func.id == "global_wrapper":
+                    self.FManager.add_fact("AssignGlobal", (target_name, value.args[0].id))
+                elif value.func.id == "__phi__":
+                    self.FManager.add_fact("AssignVar", (target_name, value.args[0].id))
+                    self.FManager.add_fact("AssignVar", (target_name, value.args[1].id))
                 return
             cur_invo = self.visit_Call(value)
             self.FManager.add_fact("ActualReturn", (0, cur_invo, target_name))
-            self.FManager.add_fact("Alloc", (target_name, self.FManager.get_new_heap()))
+            self.FManager.add_fact("Alloc", (target_name, self.FManager.get_new_heap(), self.get_cur_sig()))
         elif type(value) == ast.Constant:
             if type(value.value) == int:
                 self.FManager.add_fact("AssignIntConstant", (target_name, value.value))
@@ -261,7 +275,7 @@ class FactGenerator(ast.NodeVisitor):
                 self.FManager.add_fact("AssignFloatConstant", (target_name, value.value))
             elif type(value.value) == str:
                 self.FManager.add_fact("AssignStrConstant", (target_name, value.value.encode("unicode_escape").decode("utf-8")))
-            self.FManager.add_fact("Alloc", (target_name, self.FManager.get_new_heap()))
+            self.FManager.add_fact("Alloc", (target_name, self.FManager.get_new_heap(), self.get_cur_sig()))
         # other literals
         elif type(value) in [ast.List, ast.Tuple, ast.Set]:
             if len(value.elts) <= 50 and ast.Name in [type(x) for x in value.elts]:
@@ -271,7 +285,7 @@ class FactGenerator(ast.NodeVisitor):
                     else:
                         assert type(x) ==  ast.Constant
             new_iter = self.meth_map[type(value)]()
-            self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
+            self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap(), self.get_cur_sig()))
             self.FManager.add_fact("AssignVar", (target_name, new_iter))
         elif type(value) == ast.Dict:
             if len(value.values) <= 50 and ast.Name in [type(x) for x in value.values]:
@@ -282,16 +296,16 @@ class FactGenerator(ast.NodeVisitor):
                     else:
                         assert type(v) ==  ast.Constant
             new_iter = self.meth_map[type(value)]()
-            self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
+            self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap(), self.get_cur_sig()))
             self.FManager.add_fact("AssignVar", (target_name, new_iter))
         # comprehensions [TODO]
         elif type(value) in [ast.ListComp, ast.SetComp, ast.DictComp, ast.GeneratorExp]:
             new_iter = self.meth_map[type(value)]()
-            self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
+            self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap(), self.get_cur_sig()))
             self.FManager.add_fact("AssignVar", (target_name, new_iter))
         elif type(value) == ast.Lambda:
             new_iter = self.FManager.get_new_heap()
-            self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap()))
+            self.FManager.add_fact("Alloc", (new_iter, self.FManager.get_new_heap(), self.get_cur_sig()))
             self.FManager.add_fact("AssignVar", (target_name, new_iter))
         elif type(value) == ast.Subscript:
             assert type(value.value) == ast.Name
@@ -301,10 +315,10 @@ class FactGenerator(ast.NodeVisitor):
             elif type(value.slice) == ast.Slice:
                 slice_ids = [x.id if x else "none" for x in [value.slice.lower, value.slice.upper, value.slice.step]]
                 self.FManager.add_fact("LoadSlice", (target_name, value.value.id, *slice_ids))
-                self.FManager.add_fact("Alloc", (target_name, self.FManager.get_new_heap())) # should be generated on the fly
+                self.FManager.add_fact("Alloc", (target_name, self.FManager.get_new_heap(), self.get_cur_sig())) # should be generated on the fly
             elif type(value.slice) == ast.ExtSlice:
                 self.FManager.add_fact("LoadIndex", (target_name, value.value.id, "slice_placeholder"))
-                self.FManager.add_fact("Alloc", (target_name, self.FManager.get_new_heap())) # should be generated on the fly
+                self.FManager.add_fact("Alloc", (target_name, self.FManager.get_new_heap(), self.get_cur_sig())) # should be generated on the fly
         elif type(value) == ast.Attribute:
             assert type(value.value) == ast.Name
             self.FManager.add_fact("LoadField", (target_name, value.value.id, value.attr))
@@ -312,6 +326,7 @@ class FactGenerator(ast.NodeVisitor):
             assert type(value.left) == ast.Name
             assert type(value.right) == ast.Name
             self.FManager.add_fact("AssignBinOp", (target_name, value.left.id, value.op.__class__.__name__, value.right.id))
+            self.FManager.add_fact("Alloc", (target_name, self.FManager.get_new_heap(), self.get_cur_sig()))
         elif type(value) == ast.UnaryOp:
             assert type(value.operand) in [ast.Name, ast.Constant]
             if type(value.operand) == ast.Name:
@@ -373,8 +388,9 @@ class FactGenerator(ast.NodeVisitor):
                 cur_invo = self.visit_Call(node.value)
                 for i, t in enumerate(target.elts):
                     assert type(t) == ast.Name
+                    self.mark_localvars(t.id)
                     self.FManager.add_fact("ActualReturn", (i, cur_invo, t.id))
-                    self.FManager.add_fact("Alloc", (t.id, self.FManager.get_new_heap()))
+                    self.FManager.add_fact("Alloc", (t.id, self.FManager.get_new_heap(), self.get_cur_sig()))
             else:
                 assert False, "Unkown target type! " + str(type(target))
 

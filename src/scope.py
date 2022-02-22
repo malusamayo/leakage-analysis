@@ -13,6 +13,10 @@ class ScopeManager(object):
         self.updated_in_ctx = defaultdict(set)
         self.defined_in_ctx = defaultdict(set)
 
+        self.defined_names = {"float", "int", "str", "list", "dict", "len",
+             "print", "get_ipython"}
+        self.locals = defaultdict(set)
+
         self.ctx_num = 0
 
     def get_tmp_new_ctx(self):
@@ -53,6 +57,7 @@ class ScopeManager(object):
             if ctx == []:
                 self.name_map[complete_key] = id
                 if assigned:
+                    self.locals['.'.join(self.named_ctx)].add(id)
                     if id in self.name_nextid_map:
                         self.name_map[complete_key] = id + '$' + str(self.name_nextid_map[id])
                         self.name_nextid_map[id] += 1
@@ -65,6 +70,7 @@ class ScopeManager(object):
             if key in self.name_map:
                 # update when assigned
                 if assigned:
+                    self.locals['.'.join(self.named_ctx)].add(id)
                     # new locals
                     if key != complete_key:
                         self.name_map[complete_key] = self.name_map[key]
@@ -84,6 +90,7 @@ class ScopeManager(object):
 
     def enterNamedBlock(self, name):
         self.named_ctx.append(name)
+        self.defined_names.add(name)
 
     def leaveNamedBlock(self):
         self.named_ctx.pop()

@@ -18,6 +18,8 @@ def set_field_wrapper(base, attr, value):
 def set_index_wrapper(base, attr, value):
     setattr(base, attr, value)
     return base
+def global_wrapper(x):
+    return x
 
 '''
 
@@ -34,6 +36,12 @@ class CodeTransformer(ast.NodeTransformer):
         method = 'visit_' + node.__class__.__name__
         visitor = getattr(self, method, self.generic_visit)
         return visitor(node)
+
+    def visit_alias(self, node):
+        self.scopeManager.defined_names.add(node.name)
+        if node.asname:
+            self.scopeManager.defined_names.add(node.asname)
+        return node
 
     def generic_visit(self, node):
         rets = ast.NodeTransformer.generic_visit(self, node)
@@ -55,6 +63,11 @@ class CodeTransformer(ast.NodeTransformer):
                 if isinstance(value, ast.AST):
                     value = self.visit(value)
                     if value is None:
+                        continue
+                    elif type(value) == tuple and type(value[0]) == list and len(value) == 2:
+                        for v in value[0]:
+                            new_values.append(v)
+                        new_values.append(value[1])
                         continue
                     elif not isinstance(value, ast.AST):
                         new_values.extend(value)
@@ -88,8 +101,6 @@ class CodeTransformer(ast.NodeTransformer):
         return self.visit_FunctionDef(node)
 
     def visit_Lambda(self, node):
-        nodes, ret = self.visitNameOnly(node.body)
-        nodes.append(ast.Return(ret))
         func_name = self.FManager.get_new_func()
         func_def = ast.FunctionDef(func_name, node.args, [ast.Return(node.body)], [])
         return [self.visit(func_def)], ast.Name(func_name)
@@ -115,19 +126,21 @@ class CodeTransformer(ast.NodeTransformer):
     def visit_For(self, node):
         nodes, node.iter = self.visitNameOnly(node.iter)
 
-        def visit_Iter(target, iter_id):
+        def visit_Iter(nodes, target, iter_id):
             for i, x in enumerate(target.elts):
                 if type(x) == ast.Name:
-                    _, target.elts[i] = self.visit_Name(x, assigned=True)
+                    nodes1, target.elts[i] = self.visit_Name(x, assigned=True)
+                    nodes += nodes1
                 elif type(x) in [ast.Tuple, ast.List]:
-                    visit_Iter(x, iter_id)
+                    visit_Iter(nodes, x, iter_id)
                 else:
                     assert 0
 
         if type(node.target) == ast.Name:
-            _, node.target = self.visit_Name(node.target, assigned=True)
+            nodes1, node.target = self.visit_Name(node.target, assigned=True)
+            nodes += nodes1
         elif type(node.target) in [ast.Tuple, ast.List]:
-            visit_Iter(node.target, node.iter.id)
+            visit_Iter(nodes, node.target, node.iter.id)
         else:
             assert 0
         
@@ -261,11 +274,11 @@ class CodeTransformer(ast.NodeTransformer):
             nodes1, new_target = self.visit(target)
             nodes2, new_value = self.visitNameOnly(value)
             new_attr = ast.Constant(new_target.attr, "") if type(new_target) == ast.Attribute else new_target.slice 
-            _, new_name = self.visit_Name(target.value if type(target.value) == ast.Name else new_target.value, assigned=True)
+            nodes3, new_name = self.visit_Name(target.value if type(target.value) == ast.Name else new_target.value, assigned=True)
             func = ast.Name("set_field_wrapper") if type(new_target) == ast.Attribute else ast.Name("set_index_wrapper")
             new_assign = [ast.Assign([new_name], ast.Call(func, [new_target.value, new_attr, new_value], []))]
             # new_assign = [ast.Assign([new_target], new_value)]
-            nodes = nodes + nodes1 + nodes2 + new_assign # [ast.Assign([new_target], new_value)]
+            nodes = nodes + nodes1 + nodes2 + nodes3 + new_assign # [ast.Assign([new_target], new_value)]
         elif type(target) in [ast.Tuple, ast.List]:
             if type(value) in [ast.Tuple, ast.List] and len(target.elts) == len(value.elts):
                 new_vars = []
@@ -276,11 +289,15 @@ class CodeTransformer(ast.NodeTransformer):
                 for v, t in zip(new_vars, target.elts):
                     nodes += self.visit_Assign(ast.Assign([t], v))
             elif type(value) == ast.Call:
-                new_vars = [self.FManager.get_new_var() for v in target.elts]
+                new_vars = []
+                for v in target.elts:
+                    nodes0, new_var = self.visit_Name(ast.Name(self.FManager.get_new_var()), assigned=True)
+                    new_vars.append(new_var)
+                    nodes += nodes0
                 nodes1, call = self.visit_Call(value)
-                nodes = nodes + nodes1 + [ast.Assign([ast.Tuple([ast.Name(v) for v in new_vars])], call)]
+                nodes += nodes1 + [ast.Assign([ast.Tuple(new_vars)], call)]
                 for v, var in zip(target.elts, new_vars):
-                    nodes += self.visit_Assign(ast.Assign([v], ast.Name(var)))
+                    nodes += self.visit_Assign(ast.Assign([v], var))
             else:
                 new_vars = [self.FManager.get_new_var() for v in target.elts]
                 nodes1, new_node = self.visitNameOnly(value)
@@ -414,25 +431,31 @@ class CodeTransformer(ast.NodeTransformer):
     def visitNameOnly(self, node):
         nodes, newNode = self.visit(node)
         if type(newNode) != ast.Name:
-            _, new_var = self.visit_Name(ast.Name(self.FManager.get_new_var()), assigned=True)
-            return nodes + [ast.Assign([new_var], newNode)], new_var
+            nodes1, new_var = self.visit_Name(ast.Name(self.FManager.get_new_var()), assigned=True)
+            return nodes + nodes1 + [ast.Assign([new_var], newNode)], new_var
         return nodes, newNode
 
     def visitNameAndConsOnly(self, node):
         nodes, newNode = self.visit(node)
         if type(newNode) not in [ast.Name, ast.Constant]:
-            _, new_var = self.visit_Name(ast.Name(self.FManager.get_new_var()), assigned=True)
-            return nodes + [ast.Assign([new_var], newNode)], new_var
+            nodes1, new_var = self.visit_Name(ast.Name(self.FManager.get_new_var()), assigned=True)
+            return nodes + nodes1 +[ast.Assign([new_var], newNode)], new_var
         return nodes, newNode
     
     def visitNameAndTupleOnly(self, node):
         nodes, newNode = self.visit(node)
         if type(newNode) not in [ast.Name, ast.Tuple]:
-            _, new_var = self.visit_Name(ast.Name(self.FManager.get_new_var()), assigned=True)
-            return nodes + [ast.Assign([new_var], newNode)], new_var
+            nodes1, new_var = self.visit_Name(ast.Name(self.FManager.get_new_var()), assigned=True)
+            return nodes + nodes1 + [ast.Assign([new_var], newNode)], new_var
         return nodes, newNode
 
     def visit_Name(self, node, assigned = False):
+        if not assigned and node.id not in self.scopeManager.defined_names:
+            if node.id not in self.scopeManager.locals['.'.join(self.scopeManager.named_ctx)]:
+                nodes, new_name = self.visit_Name(ast.Name(self.FManager.get_new_var()), assigned=True)
+                new_node = ast.Name(self.scopeManager.getName(node.id, assigned))
+                nodes += [ast.Assign([new_name], ast.Call(ast.Name("global_wrapper"), [new_node], []))]
+                return nodes, new_name
         return [], ast.Name(self.scopeManager.getName(node.id, assigned))
 
     def visit_Constant(self, node):

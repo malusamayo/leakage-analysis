@@ -39,7 +39,7 @@
 // .decl FormalKeyParam(keyword:Var, meth:Method)
 .decl ActualReturn(index:number, invo:Invocation, var:Var)
 .decl FormalReturn(index:number, meth:Method, var:Var)
-// .decl MethodUpdate(meth:Method, index:number)
+.decl VarInMethod(var:Var, meth:Method)
 .decl VarType(var:Var, type:Type)
 .decl Alloc(var:Var, value:Value, inMeth:Method)
 .decl LocalMethod(meth:Method)
@@ -369,7 +369,12 @@ VarPointsTo(var, ctx, value, hctx) :-
     hctx = [invo2].
 VarPointsTo(to, ctx, value, hctx) :- 
     AssignVar(to, from),
-    VarPointsTo(from, ctx, value, hctx). // Global variables!!!!
+    VarPointsTo(from, ctx, value, hctx). 
+VarPointsTo(to, meth_ctx, value, hctx) :- 
+    AssignGlobal(to, from),
+    VarInMethod(to, meth),
+    CallGraphEdge(_, _, meth, meth_ctx),
+    VarPointsTo(from, ctx, value, hctx).
 VarPointsTo(to, ctx, value, hctx) :- 
     LoadIndex(to, base, _),
     VarPointsTo(base, ctx, value, hctx). 
@@ -476,7 +481,7 @@ FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
     InterProcAssign(to, toCtx, from, fromCtx).
 
 FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
-    (AssignVar(to, from); LoadIndex(to, from, _); StoreIndex(to, _, from); 
+    (AssignVar(to, from); AssignGlobal(to, from); LoadIndex(to, from, _); StoreIndex(to, _, from); 
     LoadField(to, from, _); StoreField(to, _, from); LoadSlice(to, from, _, _, _); StoreSlice(to, _, _, _, from);
     StoreIndexSSA(to, _, _, from); StoreFieldSSA(to, _, _, from); StoreSliceSSA(to, _, _, _, _, from);
     StoreIndexSSA(to, from, _, _); StoreFieldSSA(to, from, _, _); StoreSliceSSA(to, from, _, _, _, _)),
