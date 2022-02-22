@@ -361,7 +361,7 @@ SliceIndex(st, ed, step, index) :-
     index = ValueIdMacro(ValueIdMacro(st, ed), step).
 
 SliceIndex(st, ed, step, index) :-
-    StoreSlice(_, st, ed, step, _),
+    (StoreSlice(_, st, ed, step, _); StoreSliceSSA(_, _, st, ed, step, _)),
     index = ValueIdMacro(ValueIdMacro(st, ed), step).
 
 // .decl TaintSource(taintValue:Value, srcValue:Value, taintType:symbol)
@@ -391,7 +391,7 @@ VarPointsTo(to, ctx, value, hctx) :-
     VarPointsTo(base, ctx, baseValue, baseHctx),
     IndexContentPointsTo(baseValue, baseHctx, idx, value, hctx).
 VarPointsTo(new_base, ctx, baseValue, hctx) :- 
-    (StoreIndexSSA(new_base, base, _, _); StoreFieldSSA(new_base, base, _, _)), // [TODO]: slices!
+    (StoreIndexSSA(new_base, base, _, _); StoreFieldSSA(new_base, base, _, _); StoreSliceSSA(new_base, base, _, _, _, _)),
     VarPointsTo(base, ctx, baseValue, hctx).
 IndexContentPointsTo(baseValue, baseHctx, idx, value, hctx) :- 
     StoreIndex(base, idx, from),
@@ -436,6 +436,11 @@ VarPointsTo(to, ctx, value, hctx) :-
     IndexContentPointsTo(baseValue, baseHctx, idx, value, hctx).  
 IndexContentPointsTo(baseValue, baseHctx, idx, value, hctx) :- 
     StoreSlice(base, st, ed, step, from),
+    SliceIndex(st, ed, step, idx),
+    VarPointsTo(base, ctx, baseValue, baseHctx),
+    VarPointsTo(from, ctx, value, hctx).
+IndexContentPointsTo(baseValue, baseHctx, idx, value, hctx) :- 
+    StoreSliceSSA(_, base, st, ed, step, from),
     SliceIndex(st, ed, step, idx),
     VarPointsTo(base, ctx, baseValue, baseHctx),
     VarPointsTo(from, ctx, value, hctx).
