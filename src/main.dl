@@ -1,3 +1,4 @@
+// ---- type definitions ----
 .type Var <: symbol
 .type Type <: symbol
 .type Field <: symbol
@@ -11,7 +12,7 @@
 #define ValueIdMacro(id, type) \
     cat(cat(cat(id, "::: "), type), "::: ")
 
-// -- inputs --
+// ---- inputs ----
 // inner-procedural facts
 .decl AssignVar(to:Var, from:Var)
 .decl AssignGlobal(to:Var, from:Var)
@@ -26,7 +27,6 @@
 .decl StoreIndex(base:Var, i:Index, from:Var)
 .decl LoadSlice(to:Var, base:Var, st:Var, ed:Var, step:Var)
 .decl StoreSlice(base:Var, st:Var, ed:Var, step:Var, from:Var)
-
 .decl StoreFieldSSA(new_base:Var, base:Var, f:Field, from:Var)
 .decl StoreIndexSSA(new_base:Var, base:Var, i:Index, from:Var)
 .decl StoreSliceSSA(new_base:Var, base:Var, st:Var, ed:Var, step:Var, from:Var)
@@ -39,14 +39,11 @@
 // .decl FormalKeyParam(keyword:Var, meth:Method)
 .decl ActualReturn(index:number, invo:Invocation, var:Var)
 .decl FormalReturn(index:number, meth:Method, var:Var)
-.decl MethodUpdate(index:number, meth:Method)
 
 .decl VarInMethod(var:Var, meth:Method)
 .decl VarType(var:Var, type:Type)
 .decl Alloc(var:Var, value:Value, inMeth:Method)
 .decl LocalMethod(meth:Method)
-.decl FilteredMethod(meth:Method)
-.decl PureMethod(meth:Method)
 .decl LocalClass(cls:Type)
 .decl InvokeInLoop(invo:Invocation)
 
@@ -82,22 +79,11 @@
 .input InvokeInLoop
 
 
-// .decl ParamToParamTaintTransferMethod(to:number, from:number, method:Method)
-// .decl ParamToRetTaintTransferMethod(to:number, from:number, method:Method)
-// .decl ParamKeyToRetTaintTransferMethod(to:number, from:Var, method:Method)
-
-
-// .decl TaintSourceRetMethod(method:Method, index:number, taintType:symbol)
-// .decl TaintSourceSetRetMethod(method:Method, to:number, from:number, taintType:symbol)
-// .decl SinkMethod(method:Method, index:number, label:symbol)
-// .decl ParamToParamSetTaintTransferMethod(to:number, from:number, method:Method)
-// .decl ParamToRetSetTaintTransferMethod(to:number, from:number, method:Method)
-
-// // heap flow analysis facts
-// .decl ParamToRetSubsetMethod(to:number, from:number, method:Method)
-// .decl ParamToRetEquivMethod(to:number, from:number, method:Method)
-
-
+/* -------------------
+Method specifications
+------------------- */
+.decl FilteredMethod(meth:Method)
+.decl PureMethod(meth:Method)
 FilteredMethod(meth) :-
     meth = "__phi__"; meth = "set_field_wrapper";
     meth = "set_index_wrapper"; meth = "set_slice_wrapper".
@@ -105,42 +91,17 @@ FilteredMethod(meth) :-
 PureMethod(meth) :-
     meth = "len".
 
-// Constant Propagation
-.decl ConstantValue(var:Var, constant:symbol)
-.decl VarEquals(var1:Var, var2:Var)
-
-ConstantValue(var, constant) :-
-    AssignBoolConstant(var, constant);
-    AssignStrConstant(var, constant);
-    AssignIntConstant(var, constant);
-    AssignFloatConstant(var, constant).
-
-ConstantValue(to, constant) :-
-    VarPointsTo(from, _, value, hCtx),
-    VarPointsTo(to, _, value, hCtx),
-    ConstantValue(from, constant).
-
-// Common Expression Detection
-VarEquals(var1, var2) :-
-    ConstantValue(var1, constant),
-    ConstantValue(var2, constant).
-
-VarEquals(var, var) :-
-    VarPointsTo(var, _, _, _).
-
-VarEquals(var1, var2) :-
-    (LoadField(var1, base1, fld), LoadField(var2, base2, fld);
-    LoadIndex(var1, base1, i1), LoadIndex(var2, base2, i2), (i1 = i2; VarEquals(i1, i2))),
-    VarEquals(base1, base2).
-
-VarEquals(var1, var2) :-
-    CallGraphEdge(invo1, _, meth, _), ActualParam(1, invo1, param1), ActualReturn(0, invo1, var1),
-    CallGraphEdge(invo2, _, meth, _), ActualParam(1, invo2, param2), ActualReturn(0, invo2, var2),
-    PureMethod(meth),
-    VarEquals(param1, param2).
+.decl MethodUpdate(index:number, meth:Method)
+MethodUpdate(0, "pandas.Series.fillna").
+MethodUpdate(0, meth) :-
+    Invoke(_, meth, _),
+    match(".*[.](fit|fit_transform)", meth).
 
 
-// data flow analysis input relations
+/* -------------------
+Specified cases for data flow analysis 
+------------------- */
+//  relations
 .decl ParamToParamFlow(to:number, from:number, method:Method) 
 .decl ParamToRetFlowFilterMethod(to:number, from:number, method:Method)
 
@@ -149,20 +110,13 @@ VarEquals(var1, var2) :-
 .decl ParamContentToRetCondEquivFlow(to:number, from:number, cond_id:number,method:Method)
 .decl FlowCondition(cond_id:number, keyword:Var, constant:symbol)
 
-
+// param2param flows
 ParamToParamFlow(0, 1, "pandas.Series.fillna").
 ParamToRetFlowFilterMethod(0, 0, meth) :-
     Invoke(_, meth, _),
     match(".*[.](fit|fit_transform|transform)", meth).
 
-// ParamToRetEquivFlow(0, 0, "pandas.Series.fillna").
-// ParamToRetEquivFlow(0, 1, "pandas.DataFrame").
-// ParamToRetEquivFlow(0, 1, "pandas.concat").
-// ParamToRetEquivFlow(0, 1, "pandas.get_dummies").
-
-// **Conditional**
-// ParamToRetEquivFlow(0, 0, "pandas.Series.drop").
-// ParamToRetEquivFlow(0, 0, "pandas.DataFrame.drop").
+// equivalent flows
 ParamToRetEquivFlow(0, 0, "ndarray.reshape").
 ParamToRetEquivFlow(0, 1, "numpy.array").
 ParamToRetEquivFlow(0, 1, "sklearn.preprocessing.scale").
@@ -197,13 +151,11 @@ ParamContentToRetCondEquivFlow(0, 1, 173, meth) :-
 
 FlowCondition(173, "axis", "1").
 
-// Method updates inputs
-MethodUpdate(0, "pandas.Series.fillna").
-MethodUpdate(0, meth) :-
-    Invoke(_, meth, _),
-    match(".*[.](fit|fit_transform)", meth).
+// [TODO] specified flows for datasets
 
-// taint analysis input relations
+/* -------------------
+"Taint" inputs (specified locations for reduce/duplicate in pre-processing)
+------------------- */
 .decl ParamToRetTaintSourceMethod(to:number, from:number, method:Method, taintType:symbol)
 .decl ParamToParamTaintSourceMethod(to:number, from:number, method:Method, taintType:symbol)
 .decl RetTaintSourceMethod(retIndex:number, method:Method, taintType:symbol)
@@ -284,7 +236,9 @@ ParamToRetTaintSourceMethod(0, 1, meth, "dup")  :-
     Invoke(_, meth, _),
     match("(RandomOverSampler|SMOTE|SMOTENC|SMOTEN|ADASYN|BorderlineSMOTE|KMeansSMOTE|SVMSMOTE|SMOTEENN|SMOTETomek)[.]fit_resample", meth).
 
-// train/test locations
+/* -------------------
+Locations for train/val/test data
+------------------- */
 .decl TrainingData(method:Method, model_idx:number, data_index:number)
 .decl TrainingDataByKey(method:Method, model_idx:number, datakw:Var)
 .decl TestData(method:Method, model_idx:number, data_index:number)
@@ -298,52 +252,77 @@ ParamToRetTaintSourceMethod(0, 1, meth, "dup")  :-
 TrainingData(meth, 0, 1) :-
     Invoke(_, meth, _),
     match(".*[.](fit|fit_generator)", meth).
-
 TrainingDataByKey(meth, 0, "generator") :-
     Invoke(_, meth, _),
     match(".*[.](fit_generator)", meth).
 
+
 TestData(meth, 0, 1) :-
     Invoke(_, meth, _),
     match(".*[.](predict|score|evaluate|predict_proba)", meth).
-
 TestDataByKey(meth, 0, "x") :-
     Invoke(_, meth, _),
     match(".*[.](predict_proba)", meth).
 
+
 ValData(meth, 0, 1) :-
     Invoke(_, meth, _),
     match(".*(GridSearchCV|HalvingGridSearchCV|ParameterGrid|ParameterSampler|RandomizedSearchCV|HalvingRandomSearchCV)[.]fit", meth).
-
 ValDataByKey(meth, 0, "validation_data") :-
     Invoke(_, meth, _),
     match(".*[.](fit|fit_generator)", meth).
 
+
 ScoredData(meth, 0, 1) :-
     Invoke(_, meth, _),
     match(".*[.](score|evaluate)", meth).
-
-
 ScoredResult(meth, 2) :-
     Invoke(_, meth, _),
     match(".*(accuracy_score|balanced_accuracy_score|top_k_accuracy_score|average_precision_score|brier_score_loss|f1_score|f1_score|f1_score|f1_score|f1_score|log_loss|precision_score|recall_score|jaccard_score|roc_auc_score|roc_auc_score|roc_auc_score|roc_auc_score|roc_auc_score|adjusted_mutual_info_score|adjusted_rand_score|completeness_score|fowlkes_mallows_score|homogeneity_score|mutual_info_score|normalized_mutual_info_score|rand_score|v_measure_score|explained_variance_score|max_error|mean_absolute_error|mean_squared_error|mean_squared_error|mean_squared_log_error|median_absolute_error|r2_score|mean_poisson_deviance|mean_gamma_deviance|mean_absolute_percentage_errors)", meth).
 
+// known pre-processing methods not for training a model
 FilteredTrainingMethod(meth) :-
     Invoke(_, meth, _),
     (match("(GenericUnivariateSelect|SelectPercentile|SelectKBest|SelectFpr|SelectFdr|SelectFromModel|SelectFwe|SequentialFeatureSelector|RFE|RFECV|VarianceThreshold)[.]fit", meth);
     match("(CountVectorizer|HashingVectorizer|TfidfTransformer|TfidfVectorizer|PCA)[.]fit", meth);
     match("(Imputer|SimpleImputer|IterativeImputer|KNNImputer)[.]fit", meth);
     match("(FunctionTransformer|KBinsDiscretizer|KernelCenterer|LabelBinarizer|LabelEncoder|MultiLabelBinarizer|MaxAbsScaler|MinMaxScaler|Normalizer|OneHotEncoder|OrdinalEncoder|PolynomialFeatures|PowerTransformer|QuantileTransformer|RobustScaler|SplineTransformer|StandardScaler)[.]fit", meth)).
- 
 
-// ---- pointer analysis ----
+// ---- Constant Propagation ----
+.decl ConstantValue(var:Var, constant:symbol)
+.decl VarEquals(var1:Var, var2:Var)
 
-.decl VarPointsTo(var:Var, ctx:Context, value:Value, hctx:HContext)
-.decl IndexContentPointsTo(baseValue:Value, baseHctx:HContext, value:Value, hctx:HContext) // always insensitive
-.decl FieldPointsTo(base:Value, baseHctx:HContext, field:Field, value:Value, hctx:HContext)
-.decl InterProcAssign(to:Var, calleeCtx:Context, from:Var, callerCtx:Context)
-.decl SliceIndex(st:Var, ed:Var, step:Var, index:Index)
+ConstantValue(var, constant) :-
+    AssignBoolConstant(var, constant);
+    AssignStrConstant(var, constant);
+    AssignIntConstant(var, constant);
+    AssignFloatConstant(var, constant).
 
+ConstantValue(to, constant) :-
+    VarPointsTo(from, _, value, hCtx),
+    VarPointsTo(to, _, value, hCtx),
+    ConstantValue(from, constant).
+
+// ---- Common Expression Detection ----
+VarEquals(var1, var2) :-
+    ConstantValue(var1, constant),
+    ConstantValue(var2, constant).
+
+VarEquals(var, var) :-
+    VarPointsTo(var, _, _, _).
+
+VarEquals(var1, var2) :-
+    (LoadField(var1, base1, fld), LoadField(var2, base2, fld);
+    LoadIndex(var1, base1, i1), LoadIndex(var2, base2, i2), (i1 = i2; VarEquals(i1, i2))),
+    VarEquals(base1, base2).
+
+VarEquals(var1, var2) :-
+    CallGraphEdge(invo1, _, meth, _), ActualParam(1, invo1, param1), ActualReturn(0, invo1, var1),
+    CallGraphEdge(invo2, _, meth, _), ActualParam(1, invo2, param2), ActualReturn(0, invo2, var2),
+    PureMethod(meth),
+    VarEquals(param1, param2).
+
+// ---- call-graph construction ----
 .decl CallGraphEdge(invo:Invocation, callerCtx:Context, meth:Method, calleeCtx:Context)
 .decl Reachable(meth:Method, ctx:Context)
 
@@ -354,54 +333,45 @@ CallGraphEdge(invo, callerCtx, toMeth, calleeCtx) :-
     callerCtx = [invo1, invo2],
     calleeCtx = [invo2, invo].
 
-Reachable("", ["", ""]).
+Reachable("", ["", ""]). // entry point
 
-SliceIndex(st, ed, step, index) :-
-    LoadSlice(_, _, st, ed, step),
-    index = ValueIdMacro(ValueIdMacro(st, ed), step).
+/* -------------------
+    Pointer analysis
+------------------- */
 
-SliceIndex(st, ed, step, index) :-
-    (StoreSlice(_, st, ed, step, _); StoreSliceSSA(_, _, st, ed, step, _)),
-    index = ValueIdMacro(ValueIdMacro(st, ed), step).
+.decl VarPointsTo(var:Var, ctx:Context, value:Value, hctx:HContext)
+.decl IndexContentPointsTo(baseValue:Value, baseHctx:HContext, value:Value, hctx:HContext) // always insensitive
+.decl FieldPointsTo(base:Value, baseHctx:HContext, field:Field, value:Value, hctx:HContext)
+.decl InterProcAssign(to:Var, calleeCtx:Context, from:Var, callerCtx:Context)
+.decl SliceIndex(st:Var, ed:Var, step:Var, index:Index)
 
+// base case
 VarPointsTo(var, ctx, value, hctx) :- 
     Alloc(var, value, inMeth),
     Reachable(inMeth, ctx),
     ctx = [invo1, invo2],
     hctx = [invo2].
+
+// local assignment
 VarPointsTo(to, ctx, value, hctx) :- 
     AssignVar(to, from),
     VarPointsTo(from, ctx, value, hctx). 
+
+// assignment from global
 VarPointsTo(to, meth_ctx, value, hctx) :- 
     AssignGlobal(to, from),
     VarInMethod(to, meth),
     CallGraphEdge(_, _, meth, meth_ctx),
-    VarPointsTo(from, ctx, value, hctx).
-VarPointsTo(to, ctx, value, hctx) :- 
-    LoadIndex(to, base, _),
-    VarPointsTo(base, ctx, value, hctx). 
-VarPointsTo(to, ctx, value, hctx) :- 
-    LoadIndex(to, base, _),
-    VarPointsTo(base, ctx, baseValue, baseHctx),
-    IndexContentPointsTo(baseValue, baseHctx, value, hctx).
-VarPointsTo(new_base, ctx, baseValue, hctx) :- 
-    (StoreIndexSSA(new_base, base, _, _); StoreFieldSSA(new_base, base, _, _); StoreSliceSSA(new_base, base, _, _, _, _)),
-    VarPointsTo(base, ctx, baseValue, hctx).
-IndexContentPointsTo(baseValue, baseHctx, value, hctx) :- 
-    StoreIndex(base, _, from),
-    VarPointsTo(base, ctx, baseValue, baseHctx),
-    VarPointsTo(from, ctx, value, hctx).
-IndexContentPointsTo(baseValue, baseHctx, value, hctx) :- 
-    StoreIndexSSA(_, base, _, from),
-    VarPointsTo(base, ctx, baseValue, baseHctx),
-    VarPointsTo(from, ctx, value, hctx).
+    VarPointsTo(from, _, value, hctx).
 
+// [TODO] assignment to global
+
+// load/store fields
+// the analysis is field-insensitive for unknown fields 
+// currently the insensitive part always applies [TODO]
 VarPointsTo(to, ctx, value, hctx) :- 
     LoadField(to, base, _),
     VarPointsTo(base, ctx, value, hctx).
-// FieldPointsTo(base, fld, value) :-
-//     value = ValueIdMacro(ValueIdMacro("$heap", base), fld),
-//     LoadField(to, base, fld).
 VarPointsTo(to, ctx, value, hctx) :- 
     LoadField(to, base, fld),
     VarPointsTo(base, ctx, baseValue, baseHctx),
@@ -415,6 +385,38 @@ FieldPointsTo(baseValue, baseHctx, fld, value, hctx) :-
     VarPointsTo(base, ctx, baseValue, baseHctx),
     VarPointsTo(from, ctx, value, hctx).
 
+// load/store indexes
+// the base objects could be list/tuple/dict/Series/DataFrame (any type that implements _getitem__ method)
+// the semantics depends on specific implementations, e.g., indexing DataFrame may return a copy or a view of the original object
+VarPointsTo(to, ctx, value, hctx) :- 
+    LoadIndex(to, base, _),
+    VarPointsTo(base, ctx, value, hctx). 
+VarPointsTo(to, ctx, value, hctx) :- 
+    LoadIndex(to, base, _),
+    VarPointsTo(base, ctx, baseValue, baseHctx),
+    IndexContentPointsTo(baseValue, baseHctx, value, hctx).
+// [TODO] add this case
+// IndexContentPointsTo(toValue, toHctx, value, hctx) :- 
+//     LoadIndex(to, base, _),
+//     VarPointsTo(to, ctx, toValue, toHctx),
+//     VarPointsTo(base, ctx, baseValue, baseHctx),
+//     IndexContentPointsTo(baseValue, baseHctx, value, hctx).
+IndexContentPointsTo(baseValue, baseHctx, value, hctx) :- 
+    StoreIndex(base, _, from),
+    VarPointsTo(base, ctx, baseValue, baseHctx),
+    VarPointsTo(from, ctx, value, hctx).
+IndexContentPointsTo(baseValue, baseHctx, value, hctx) :- 
+    StoreIndexSSA(_, base, _, from),
+    VarPointsTo(base, ctx, baseValue, baseHctx),
+    VarPointsTo(from, ctx, value, hctx).
+
+// load/store slices
+SliceIndex(st, ed, step, index) :-
+    LoadSlice(_, _, st, ed, step),
+    index = ValueIdMacro(ValueIdMacro(st, ed), step).
+SliceIndex(st, ed, step, index) :-
+    (StoreSlice(_, st, ed, step, _); StoreSliceSSA(_, _, st, ed, step, _)),
+    index = ValueIdMacro(ValueIdMacro(st, ed), step).
 // slices are shallow copies; the contents point to the same objects
 IndexContentPointsTo(toValue, toHctx, value, hctx) :- 
     LoadSlice(to, from, st, ed, step),
@@ -433,18 +435,22 @@ IndexContentPointsTo(baseValue, baseHctx, value, hctx) :-
     VarPointsTo(base, ctx, baseValue, baseHctx),
     VarPointsTo(from, ctx, value, hctx).
 
+// extra cases for SSA
+VarPointsTo(new_base, ctx, baseValue, hctx) :- 
+    (StoreIndexSSA(new_base, base, _, _); StoreFieldSSA(new_base, base, _, _); StoreSliceSSA(new_base, base, _, _, _, _)),
+    VarPointsTo(base, ctx, baseValue, hctx).
+
+// inter-procedural cases
 InterProcAssign(to, calleeCtx, from, callerCtx) :-
     CallGraphEdge(invo, callerCtx, meth, calleeCtx),
     !FilteredMethod(meth),
     FormalParam(index, meth, to),
     ActualParam(index, invo, from).
-
 InterProcAssign(to, calleeCtx, from, callerCtx) :-
     CallGraphEdge(invo, callerCtx, meth, calleeCtx),
     !FilteredMethod(meth),
     FormalParam(_, meth, to),
     ActualKeyParam(to, invo, from).
-
 InterProcAssign(to, callerCtx, from, calleeCtx) :-
     CallGraphEdge(invo, callerCtx, meth, calleeCtx),
     !FilteredMethod(meth),
@@ -455,13 +461,15 @@ VarPointsTo(to, toCtx, value, hctx) :-
     InterProcAssign(to, toCtx, from, fromCtx),
     VarPointsTo(from, fromCtx, value, hctx).
 
-
-// ---- data flow analysis ----
+/* -------------------
+    Information flow analysis
+------------------- */
 .decl FlowFrom(to:Var, toCtx:Context, from:Var, fromCtx:Context, tag:symbol)
 .decl FlowFromEdge(to:Var, toCtx:Context, from:Var, fromCtx:Context, tag:symbol)
 .decl FlowFromExtended(to:Var, toCtx:Context, from:Var, fromCtx:Context, tag:symbol)
 .decl NonDataTransferEdge(to:Var, from:Var)
 
+// unspecified methods: all parameters flow into return results
 FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
     CallGraphEdge(invo, _, meth, _),
     (ActualParam(_, invo, from); ActualKeyParam(_, invo, from)),
@@ -470,6 +478,7 @@ FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
     VarPointsTo(to, toCtx, _, _),
     VarPointsTo(from, fromCtx, _, _).
 
+// specified flows between parameters
 FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
     CallGraphEdge(invo, _, meth, _),
     ParamToParamFlow(toIdx, fromIdx, meth),
@@ -478,9 +487,11 @@ FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
     VarPointsTo(to, toCtx, _, _),
     VarPointsTo(from, fromCtx, _, _).
 
+// inter-procedural flows
 FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
     InterProcAssign(to, toCtx, from, fromCtx).
 
+// inner-procedural flows
 FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
     (AssignVar(to, from); AssignGlobal(to, from); LoadIndex(to, from, _); StoreIndex(to, _, from); 
     LoadField(to, from, _); StoreField(to, _, from); LoadSlice(to, from, _, _, _); StoreSlice(to, _, _, _, from);
@@ -494,18 +505,13 @@ FlowFromEdge(to, toCtx, right, rightCtx, "normal") :-
     AssignBinOp(to, left, _, right),
     VarPointsTo(to, toCtx, _, _), VarPointsTo(left, leftCtx, _, _), VarPointsTo(right, rightCtx, _, _).
 
-FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
-    FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
-    (StoreIndexSSA(to, from, _, _); StoreFieldSSA(to, from, _, _); StoreSliceSSA(to, from, _, _, _, _);
-    InterProcAssign(to, _, from, _); AssignVar(to, from)).
-
+// in-place updates will trigger flow to aliases
 FlowFromEdge(from, fromCtx, to, toCtx,  "normal"),
 FlowFromEdge(from, fromCtx, to, toCtx,  "equiv") :-
     (StoreIndexSSA(to, mid, _, _); StoreFieldSSA(to, mid, _, _); StoreSliceSSA(to, mid, _, _, _, _)),
     VarPointsTo(to, toCtx, value, hctx),
     VarPointsTo(mid, midCtx, value, hctx),
     VarPointsTo(from, fromCtx, value, hctx).
-
 FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
 FlowFromEdge(to, toCtx, from, fromCtx,  "equiv") :-
     CallGraphEdge(invo, _, meth, _),
@@ -514,9 +520,16 @@ FlowFromEdge(to, toCtx, from, fromCtx,  "equiv") :-
     VarPointsTo(to, toCtx, value, hctx),
     VarPointsTo(from, fromCtx, value, hctx).
 
+// self-loop
 FlowFromEdge(from, fromCtx, from, fromCtx, "normal"),
 FlowFromEdge(from, fromCtx, from, fromCtx, "equiv")  :-
     VarPointsTo(from, fromCtx, _, _).
+
+// other known equivalent flows
+FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
+    FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
+    (StoreIndexSSA(to, from, _, _); StoreFieldSSA(to, from, _, _); StoreSliceSSA(to, from, _, _, _, _);
+    InterProcAssign(to, _, from, _); AssignVar(to, from)).
 
 FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
     FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
@@ -525,15 +538,15 @@ FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
 
 FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
     FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
-    LoadIndex(to, from, _). // should also add type requirement [TODO]
+    LoadIndex(to, from, _). // should restrict it to column indexing [TODO]
 
+// marked equivalent flows
 FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
     FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
     CallGraphEdge(invo, _, meth, _),
     ParamToRetEquivFlow(toIdx, fromIdx, meth),
     ActualParam(fromIdx, invo, from),
     ActualReturn(toIdx, invo, to).
-
 FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
     FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
     CallGraphEdge(invo, _, meth, _),
@@ -543,7 +556,6 @@ FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
     ConstantValue(var, content),
     ActualParam(fromIdx, invo, from),
     ActualReturn(toIdx, invo, to).
-
 FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
     FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
     CallGraphEdge(invo, _, meth, _),
@@ -557,6 +569,8 @@ FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
     IndexContentPointsTo(fromListValue, baseHctx, fromValue, hctx),
     ActualReturn(toIdx, invo, to).
 
+// flows between data
+// now we assume all flows are between data, except for known model variables
 NonDataTransferEdge(to, from) :-
     ParamToRetFlowFilterMethod(to_idx, from_idx, meth),
     CallGraphEdge(invo, _, meth, _),
@@ -568,14 +582,16 @@ FlowFromEdge(to, toCtx, from, fromCtx, "data") :-
     !IsModel(to), !IsModel(from), 
     FlowFromEdge(to, toCtx, from, fromCtx, "normal").
 
+// flow path base case
 FlowFrom(to, toCtx, from, fromCtx, tag) :-
     FlowFromEdge(to, toCtx, from, fromCtx, tag).
 
+// flow path transitive case
 FlowFrom(to, toCtx, from, fromCtx, tag) :-
     FlowFrom(to, toCtx, mid, midCtx, tag),
     FlowFrom(mid, midCtx, from, fromCtx, tag).
 
-
+// [deprecated]
 FlowFromExtended(to, toCtx, from, fromCtx, tag) :-
     FlowFrom(to, toCtx, from, fromCtx, tag).
 
@@ -604,193 +620,21 @@ FlowFromExtended(to, toCtx, from, fromCtx, tag) :-
 //     FieldPointsTo(baseValue, _, value),
 //     VarPointsTo(from, value).
 
-FlowFromExtended(to, toCtx, from, fromCtx, tag) :-
-    FlowFromExtended(to, toCtx, mid, midCtx, tag),
-    FlowFromExtended(mid, midCtx, from, fromCtx, tag).
-
-// ---- derived training/validation/test data rules ----
-.decl TrainingDataWithModel(model:Var, train:Var, invo:Invocation, meth:Method)
-.decl ValOrTestDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
-.decl ScoredDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
-.decl TestDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
-.decl ValDataWithModel(model:Var, val:Var, invo:Invocation, meth:Method)
-.decl TrainTestPair(trainModel:Var, train:Var, testModel:Var, test:Var)
-.decl TrainValPair(trainModel:Var, train:Var, valModel:Var, val:Var)
-
-.decl ModelOverlap(model1:Var, ctx1:Context, model2:Var, ctx2:Context)
-.decl IsModel(model:Var)
-
-IsModel(model) :-   // one case to consider
-    TrainingDataWithModel(model, _, _, _);
-    ValOrTestDataWithModel(model, _, _, _).
-
-ModelOverlap(model1, ctx1, model2, ctx2) :-
-    IsModel(model1), IsModel(model2),
-    FlowFromExtended(model1, ctx1, model2, ctx2, _).
-
-ModelOverlap(model2, ctx2, model1, ctx1) :- ModelOverlap(model1, ctx1, model2, ctx2).
-
-TrainingDataWithModel(model, train, invo, meth) :-
-    (TrainingData(meth, model_idx, idx),
-    ActualParam(idx, invo, train);
-    TrainingDataByKey(meth, model_idx, keyword),
-    ActualKeyParam(keyword, invo, train)),
-    CallGraphEdge(invo, _, meth, _),
-    !FilteredTrainingMethod(meth),
-    ActualParam(model_idx, invo, model).
-
-// could be both
-ValOrTestDataWithModel(model, test, invo, meth) :-
-    (TestData(meth, model_idx, idx),
-    ActualParam(idx, invo, test);
-    TestDataByKey(meth, model_idx, keyword),
-    ActualKeyParam(keyword, invo, test)),
-    CallGraphEdge(invo, _, meth, _),
-    ActualParam(model_idx, invo, model).
-
-ScoredDataWithModel(model, test, invo, meth) :-
-    ValOrTestDataWithModel(model, test, invo, meth),
-    ScoredData(meth, model_idx, idx),
-    ActualParam(idx, invo, test),
-    ActualParam(model_idx, invo, model).
-
-ScoredDataWithModel(model, test, invo, meth) :-
-    ValOrTestDataWithModel(model, test, invo, meth),
-    ActualReturn(ret_idx, invo, ret),
-    ret_idx = 0,
-    FlowFromExtended(res, ctx2, ret, ctx1, _),
-    ScoredResult(meth2, res_idx),
-    CallGraphEdge(invo2, ctx2, meth2, _),
-    CallGraphEdge(invo, ctx1, meth, _),
-    ActualParam(res_idx, invo2, res).
-
-ValDataWithModel(model, val, invo, meth) :-
-    (ValData(meth, model_idx, idx),
-    ActualParam(idx, invo, val);
-    ValDataByKey(meth, model_idx, keyword),
-    ActualKeyParam(keyword, invo, val)),
-    CallGraphEdge(invo, _, meth, _),
-    ActualParam(model_idx, invo, model).
-
-ValDataWithModel(model, val, invo, meth) :-
-    ValDataByKey(meth, model_idx, keyword),
-    keyword = "validation_data",
-    ActualKeyParam(keyword, invo, tup),
-    StoreIndex(tup, "0", val),
-    CallGraphEdge(invo, _, meth, _),
-    ActualParam(model_idx, invo, model).
-
-ValDataWithModel(model, val, invo, meth) :-
-    ValOrTestDataWithModel(model, val, invo, meth),
-    InvokeInLoop(invo).
-
-// exactly the same, or overlapping data?
-ValDataWithModel(testModel, val, invo, meth),
-ValDataWithModel(testModel2, val, invo2, meth2) :-
-    ScoredDataWithModel(testModel, val, invo, meth),
-    ScoredDataWithModel(testModel2, val, invo2, meth2),
-    invo != invo2,
-    !ModelOverlap(testModel, _, testModel2, _).
-
-// propagation
-ValDataWithModel(model, test, invo, meth) :-
-    ValOrTestDataWithModel(model, test, invo, meth),
-    ValDataWithModel(testModel, val, invo, meth),
-    ModelOverlap(model, ctx1, testModel, ctx2),
-    DataOverlap(test, ctx1, val, ctx2).
-
-TestDataWithModel(model, test, invo, meth) :-
-    ValOrTestDataWithModel(model, test, invo, meth),
-    !ValDataWithModel(model, test, invo, meth).
-    // !ValDataWithModel(model, test, _, _). // and there should be no flow between test and val! [TODO]
-
-// ValTestPair(valModel, val, testModel, test) :-
-//     TestDataWithModel(testModel, test, _, _),
-//     ValDataWithModel(valModel, val, _, _),
-//     (val = test; FlowFrom(test, val, _); FlowFrom(val, test, _)),
-//     (valModel = testModel; FlowFromExtended(testModel, valModel, _)).
-
-TrainTestPair(trainModel, train, testModel, test) :-
-    TestDataWithModel(testModel, test, _, _),
-    TrainingDataWithModel(trainModel, train, _, _),
-    !DataOverlap(test, ctx1, train, ctx2),
-    ModelOverlap(testModel, ctx1, trainModel, ctx2).
-
-TrainValPair(trainModel, train, valModel, val) :-
-    ValDataWithModel(valModel, val, _, _),
-    TrainingDataWithModel(trainModel, train, _, _),
-    !DataOverlap(val, ctx1, train, ctx2),
-    ModelOverlap(valModel, ctx1, trainModel, ctx2).
-
-// ---- leak detection ----
-.decl Leak(var:Var, invo:Invocation, meth:Method)
-.decl PreProcessingLeak(var:Var, invo:Invocation, meth:Method)
-.decl OverlapLeak(testModel:Var, trainModel:Var, invo:Invocation, meth:Method)
+// FlowFromExtended(to, toCtx, from, fromCtx, tag) :-
+//     FlowFromExtended(to, toCtx, mid, midCtx, tag),
+//     FlowFromExtended(mid, midCtx, from, fromCtx, tag).
 
 
-Leak(var, invo, meth) :-
-    PreProcessingLeak(var, invo, meth);
-    OverlapLeak(_, var, invo, meth).
-
-// General edges/taints
-.decl TaintStarts(var:Var, ctx: Context, label:symbol)
-.decl TaintStartsTarget(to:Var, toCtx:Context, from:Var, fromCtx:Context, label:symbol)
-// .decl TaintedVar(var:Var)
-
-TaintStarts(var, callerCtx, label) :-
-    CallGraphEdge(invo, callerCtx, meth, _),
-    RetTaintSourceMethod(idx, meth, label),
-    ActualReturn(idx, invo, var).
-
-TaintStarts(var, callerCtx, label),
-TaintStartsTarget(target, callerCtx, var, callerCtx, label) :-
-    CallGraphEdge(invo, callerCtx, meth, _),
-    (ParamToParamTaintSourceMethod(toIdx, fromIdx, meth, label), ActualParam(toIdx, invo, target);
-    ParamToRetTaintSourceMethod(toIdx, fromIdx, meth, label), ActualReturn(toIdx, invo, target);
-    ParamToRetCondTaintSourceMethod(toIdx, fromIdx, cond_id, meth, label), TaintCondition(cond_id, srcIdx, srcTaintType),
-    ActualParam(srcIdx, invo, src), FlowFrom(src, callerCtx, src_start, src_start_ctx, _), TaintStarts(src_start, src_start_ctx, srcTaintType), ActualReturn(toIdx, invo, target)),
-    ActualParam(fromIdx, invo, var).
-
-// TaintedVar(var) :-  
-//     TaintStarts(var, _).
-
-// TaintedVar(to) :-  
-//     FlowFromExtended(to, from, _),
-//     TaintedVar(from).
-
-
-// pre-processing leaks
-.decl ReduceEdge(to:Var, toCtx:Context, from:Var, fromCtx:Context)
-ReduceEdge(to, toCtx, from, fromCtx) :-
-    TaintStartsTarget(to, toCtx, from, fromCtx, "rowset").
-
-PreProcessingLeak(src, invo, meth) :-
-    (TrainTestPair(trainModel, train, testModel, test); TrainValPair(trainModel, train, testModel, test)),
-    TrainingDataWithModel(trainModel, train, invo, meth),
-    // TestDataWithModel(testModel, test, _, _),
-    ReduceEdge(reduced_from_src, r_ctx, src, src_ctx),
-    (FlowFromExtended(train, _, reduced_from_src, r_ctx, _); FlowFromExtended(test, ctx1, reduced_from_src, r_ctx, _)),
-    DataOverlap(test, ctx1, src, src_ctx).
-
-// PreProcessingLeak(src, invo, meth) :-
-//     TrainTestPair(trainModel, train, testModel, test),
-//     TrainingDataWithModel(trainModel, train, invo, meth),
-//     TestDataWithModel(testModel, test, _, _),
-//     ReduceEdge(reduced_from_src, src),
-//     FlowFromExtended(test, reduced_from_src, _),
-//     DataOverlap(test, src).
-
-// Overlap detection
+/* -----------------------------
+Overlap analysis
+----------------------------- */
 .decl DataOverlap(train:Var, ctx1:Context, test:Var, ctx2:Context)
-.decl DuplicateEdge(to:Var, toCtx:Context, from:Var, fromCtx:Context)
-
-DuplicateEdge(to, toCtx, from, fromCtx) :-
-    TaintStartsTarget(to, toCtx, from, fromCtx, "dup").
-
+.decl ModelOverlap(model1:Var, ctx1:Context, model2:Var, ctx2:Context)
 DataOverlap(train, ctx1, test, ctx2) :- // split with slicing will never be recognized as overlaps
     FlowFromExtended(test, ctx2, src_equiv, ctx_src, "data"), 
     FlowFromExtended(train, ctx1, src_equiv, ctx_src, "equiv").
 
+// [TODO] Overlap in fields/contents
 DataOverlap(train, ctx1, test, ctx2) :- DataOverlap(test, ctx2, train, ctx1).
 
 DataOverlap(train, ctx1, test, ctx2) :-
@@ -808,6 +652,170 @@ DataOverlap(train, ctx1, test, ctx2) :-
     FlowFromExtended(test, ctx2, to, toCtx, "data"),
     DataOverlap(train, ctx1, from, fromCtx).
 
+// check whether two models are related
+ModelOverlap(model1, ctx1, model2, ctx2) :-
+    IsModel(model1), IsModel(model2),
+    FlowFromExtended(model1, ctx1, model2, ctx2, _).
+ModelOverlap(model2, ctx2, model1, ctx1) :- ModelOverlap(model1, ctx1, model2, ctx2).
+
+
+/* -----------------------------
+Training/validation/test data rules
+----------------------------- */
+.decl TrainingDataWithModel(model:Var, train:Var, invo:Invocation, meth:Method)
+.decl ValOrTestDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
+.decl ScoredDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
+.decl TestDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
+.decl ValDataWithModel(model:Var, val:Var, invo:Invocation, meth:Method)
+.decl TrainTestPair(trainModel:Var, train:Var, testModel:Var, test:Var)
+.decl TrainValPair(trainModel:Var, train:Var, valModel:Var, val:Var)
+.decl IsModel(model:Var)
+
+IsModel(model) :- 
+    TrainingDataWithModel(model, _, _, _); ValOrTestDataWithModel(model, _, _, _).
+
+TrainingDataWithModel(model, train, invo, meth) :-
+    (TrainingData(meth, model_idx, idx),
+    ActualParam(idx, invo, train);
+    TrainingDataByKey(meth, model_idx, keyword),
+    ActualKeyParam(keyword, invo, train)),
+    CallGraphEdge(invo, _, meth, _),
+    !FilteredTrainingMethod(meth),
+    ActualParam(model_idx, invo, model).
+
+// could be test/validation data; to be determined
+ValOrTestDataWithModel(model, test, invo, meth) :-
+    (TestData(meth, model_idx, idx),
+    ActualParam(idx, invo, test);
+    TestDataByKey(meth, model_idx, keyword),
+    ActualKeyParam(keyword, invo, test)),
+    CallGraphEdge(invo, _, meth, _),
+    ActualParam(model_idx, invo, model).
+
+// find test/validation data used to compute scores
+// [Case 1] score functions called upon models
+ScoredDataWithModel(model, test, invo, meth) :-
+    ValOrTestDataWithModel(model, test, invo, meth),
+    ScoredData(meth, model_idx, idx),
+    ActualParam(idx, invo, test),
+    ActualParam(model_idx, invo, model).
+// [Case 2] prediction results are used to compute scores
+ScoredDataWithModel(model, test, invo, meth) :-
+    ValOrTestDataWithModel(model, test, invo, meth),
+    ActualReturn(ret_idx, invo, ret),
+    ret_idx = 0,
+    FlowFromExtended(res, ctx2, ret, ctx1, _),
+    ScoredResult(meth2, res_idx),
+    CallGraphEdge(invo2, ctx2, meth2, _),
+    CallGraphEdge(invo, ctx1, meth, _),
+    ActualParam(res_idx, invo2, res).
+
+// validation data rules
+// [Case 1] Specified method arguments that are used for validation 
+ValDataWithModel(model, val, invo, meth) :-
+    (ValData(meth, model_idx, idx),
+    ActualParam(idx, invo, val);
+    ValDataByKey(meth, model_idx, keyword),
+    ActualKeyParam(keyword, invo, val)),
+    CallGraphEdge(invo, _, meth, _),
+    ActualParam(model_idx, invo, model).
+ValDataWithModel(model, val, invo, meth) :-
+    ValDataByKey(meth, model_idx, keyword),
+    keyword = "validation_data",
+    ActualKeyParam(keyword, invo, tup),
+    StoreIndex(tup, "0", val),
+    CallGraphEdge(invo, _, meth, _),
+    ActualParam(model_idx, invo, model).
+// [Case 2] Invoke multiple times in a loop
+ValDataWithModel(model, val, invo, meth) :-
+    ValOrTestDataWithModel(model, val, invo, meth),
+    InvokeInLoop(invo).
+// [Case 3] Scored multiple times for different models
+// [TODO] exactly the same, or overlapping data?
+ValDataWithModel(testModel, val, invo, meth),
+ValDataWithModel(testModel2, val, invo2, meth2) :-
+    ScoredDataWithModel(testModel, val, invo, meth),
+    ScoredDataWithModel(testModel2, val, invo2, meth2),
+    invo != invo2,
+    !ModelOverlap(testModel, _, testModel2, _).
+// [Case 4] propagation to overlapping data
+ValDataWithModel(model, test, invo, meth) :-
+    ValOrTestDataWithModel(model, test, invo, meth),
+    ValDataWithModel(testModel, val, invo, meth),
+    ModelOverlap(model, ctx1, testModel, ctx2),
+    DataOverlap(test, ctx1, val, ctx2).
+
+// all remaining data is treated as validation data
+TestDataWithModel(model, test, invo, meth) :-
+    ValOrTestDataWithModel(model, test, invo, meth),
+    !ValDataWithModel(model, test, invo, meth).
+
+// Pairing train/test, train/val data
+// We assume there should be no data overlapping
+TrainTestPair(trainModel, train, testModel, test) :-
+    TestDataWithModel(testModel, test, _, _),
+    TrainingDataWithModel(trainModel, train, _, _),
+    !DataOverlap(test, ctx1, train, ctx2),
+    ModelOverlap(testModel, ctx1, trainModel, ctx2).
+TrainValPair(trainModel, train, valModel, val) :-
+    ValDataWithModel(valModel, val, _, _),
+    TrainingDataWithModel(trainModel, train, _, _),
+    !DataOverlap(val, ctx1, train, ctx2),
+    ModelOverlap(valModel, ctx1, trainModel, ctx2).
+
+/* -----------------------------
+Leak detection rules
+----------------------------- */
+.decl Leak(var:Var, invo:Invocation, meth:Method)
+.decl PreProcessingLeak(var:Var, invo:Invocation, meth:Method)
+.decl OverlapLeak(testModel:Var, trainModel:Var, invo:Invocation, meth:Method)
+
+Leak(var, invo, meth) :-
+    PreProcessingLeak(var, invo, meth);
+    OverlapLeak(_, var, invo, meth).
+
+// General edges/taints
+// Taints are initialized at places where pre-processing leak might happen
+.decl TaintStarts(var:Var, ctx: Context, label:symbol)
+.decl TaintStartsTarget(to:Var, toCtx:Context, from:Var, fromCtx:Context, label:symbol)
+
+TaintStarts(var, callerCtx, label) :-
+    CallGraphEdge(invo, callerCtx, meth, _),
+    RetTaintSourceMethod(idx, meth, label),
+    ActualReturn(idx, invo, var).
+
+TaintStarts(var, callerCtx, label),
+TaintStartsTarget(target, callerCtx, var, callerCtx, label) :-
+    CallGraphEdge(invo, callerCtx, meth, _),
+    (ParamToParamTaintSourceMethod(toIdx, fromIdx, meth, label), ActualParam(toIdx, invo, target);
+    ParamToRetTaintSourceMethod(toIdx, fromIdx, meth, label), ActualReturn(toIdx, invo, target);
+    ParamToRetCondTaintSourceMethod(toIdx, fromIdx, cond_id, meth, label), TaintCondition(cond_id, srcIdx, srcTaintType),
+    ActualParam(srcIdx, invo, src), FlowFrom(src, callerCtx, src_start, src_start_ctx, _), TaintStarts(src_start, src_start_ctx, srcTaintType), ActualReturn(toIdx, invo, target)),
+    ActualParam(fromIdx, invo, var).
+
+/* -----------------------------
+Pre-processing leak detection
+----------------------------- */
+.decl ReduceEdge(to:Var, toCtx:Context, from:Var, fromCtx:Context)
+ReduceEdge(to, toCtx, from, fromCtx) :-
+    TaintStartsTarget(to, toCtx, from, fromCtx, "rowset").
+
+PreProcessingLeak(src, invo, meth) :-
+    (TrainTestPair(trainModel, train, testModel, test); TrainValPair(trainModel, train, testModel, test)),
+    TrainingDataWithModel(trainModel, train, invo, meth),
+    // TestDataWithModel(testModel, test, _, _),
+    ReduceEdge(reduced_from_src, r_ctx, src, src_ctx),
+    (FlowFromExtended(train, _, reduced_from_src, r_ctx, _); FlowFromExtended(test, ctx1, reduced_from_src, r_ctx, _)),
+    DataOverlap(test, ctx1, src, src_ctx).
+
+/* -----------------------------
+Overlap leak detection
+----------------------------- */
+.decl DuplicateEdge(to:Var, toCtx:Context, from:Var, fromCtx:Context)
+
+DuplicateEdge(to, toCtx, from, fromCtx) :-
+    TaintStartsTarget(to, toCtx, from, fromCtx, "dup").
+
 OverlapLeak(testModel, trainModel, invo, meth) :-
     TrainingDataWithModel(trainModel, train, invo, meth),
     ValOrTestDataWithModel(testModel, test, _, _),
@@ -815,13 +823,9 @@ OverlapLeak(testModel, trainModel, invo, meth) :-
     train != test,
     ModelOverlap(trainModel, _, testModel, _).
 
-// OverlapLeak(testModel, valModel, invo, meth) :-
-//     ValDataWithModel(valModel, val, invo, meth),
-//     TestDataWithModel(testModel, test, _, _),
-//     DataOverlap(val, test),
-//     DataOverlap(testModel, valModel).
-
-// No Test detection
+/* -----------------------------
+No test data detection
+----------------------------- */
 .decl NoValAndTestData(trainModel:Var, invo:Invocation, meth:Method)
 .decl NoTestData(trainModel:Var, invo:Invocation, meth:Method)
 
@@ -835,6 +839,9 @@ NoTestData(trainModel, invo, meth) :-
     TrainValPair(trainModel, train, _, _),
     !TrainTestPair(trainModel, train, _, _).
 
+/* -----------------------------
+Multi-used test data detection
+----------------------------- */
 .decl MultiUseTestLeak(test:Var, invo:Invocation, meth:Method)
 MultiUseTestLeak(test, invo, meth) :-
     TestDataWithModel(testModel, test, invo, meth),
@@ -844,8 +851,7 @@ MultiUseTestLeak(test, invo, meth) :-
     invo != invo2,
     DataOverlap(test, _, test2, _).
 
-// [TODO] separate validation/test, detect test multi-use
-
+// ---- outputs ----
 .output CallGraphEdge
 .output TrainTestPair
 .output TrainValPair
@@ -856,7 +862,6 @@ MultiUseTestLeak(test, invo, meth) :-
 .output FlowFrom
 .output FlowFromExtended
 .output TaintStartsTarget
-// .output TaintedVar
 .output VarPointsTo
 .output FieldPointsTo
 .output IndexContentPointsTo
