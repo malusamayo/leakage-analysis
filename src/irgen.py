@@ -64,11 +64,6 @@ class CodeTransformer(ast.NodeTransformer):
                     value = self.visit(value)
                     if value is None:
                         continue
-                    elif type(value) == tuple and type(value[0]) == list and len(value) == 2:
-                        for v in value[0]:
-                            new_values.append(v)
-                        new_values.append(value[1])
-                        continue
                     elif not isinstance(value, ast.AST):
                         new_values.extend(value)
                         continue
@@ -85,7 +80,7 @@ class CodeTransformer(ast.NodeTransformer):
             nodes += nodes1
         node.body = self.visit_Body(node.body)
         self.scopeManager.leaveNamedBlock()
-        return nodes, node
+        return nodes + [node]
 
     def visit_FunctionDef(self, node):
         self.scopeManager.enterNamedBlock(node.name)
@@ -109,19 +104,19 @@ class CodeTransformer(ast.NodeTransformer):
         nodes1 = []
         if node.value:
             nodes1, node.value = self.visitNameAndTupleOnly(node.value)
-        return nodes1, node
+        return nodes1 + [node]
     
     def visit_Yield(self, node):
         nodes1 = []
         if node.value:
             nodes1, node.value = self.visitNameAndTupleOnly(node.value)
-        return nodes1, node
+        return nodes1 + [node]
 
     def visit_YieldFrom(self, node):
         nodes1 = []
         if node.value:
             nodes1, node.value = self.visitNameAndTupleOnly(node.value)
-        return nodes1, [node]
+        return nodes1 + [node]
 
     def visit_For(self, node):
         nodes, node.iter = self.visitNameOnly(node.iter)
@@ -191,11 +186,11 @@ class CodeTransformer(ast.NodeTransformer):
         node.orelse = self.visit_Body(node.orelse)
         node.finalbody = self.visit_Body(node.finalbody)
         # phi function here [TODO]
-        return [], node
+        return node
 
     def visit_ExceptHandler(self, node):
         node.body = self.visit_Body(node.body)
-        return [], node
+        return node
 
     def visit_With(self, node):
         nodes = []
@@ -205,7 +200,7 @@ class CodeTransformer(ast.NodeTransformer):
             if item.optional_vars:
                 nodes += self.visit(ast.Assign([item.optional_vars], item.context_expr))
         node.body = self.visit_Body(node.body)
-        return nodes, node
+        return nodes + [node]
 
     # ignore pattern matching for now
 
@@ -216,7 +211,7 @@ class CodeTransformer(ast.NodeTransformer):
             nodes1, new_v = self.visitNameOnly(t)
             new_vars.append(new_v)
             nodes += nodes1
-        return nodes, ast.Delete(new_vars)
+        return nodes + [ast.Delete(new_vars)]
     
     def visit_Raise(self, node):
         nodes1, new_exec = [], None
@@ -225,14 +220,14 @@ class CodeTransformer(ast.NodeTransformer):
             nodes1, new_exec = self.visitNameOnly(node.exc)
         if node.cause:
             nodes2, new_cause = self.visitNameOnly(node.cause)
-        return nodes1 + nodes2, ast.Raise(new_exec, new_cause)
+        return nodes1 + nodes2 + [ast.Raise(new_exec, new_cause)]
 
     def visit_Assert(self, node):
         nodes1, new_test = self.visitNameOnly(node.test)
         nodes2, new_msg = [], None
         if node.msg:
             nodes2, new_msg = self.visitNameOnly(node.msg)
-        return nodes1 + nodes2, ast.Assert(new_test, new_msg)
+        return nodes1 + nodes2 + [ast.Assert(new_test, new_msg)]
 
     def visit_Expr(self, node):
         # nodes, new_node = self.visit(node.value)

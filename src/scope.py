@@ -13,7 +13,7 @@ class ScopeManager(object):
         self.updated_in_ctx = defaultdict(set)
         self.defined_in_ctx = defaultdict(set)
 
-        self.defined_names = {"float", "int", "str", "list", "dict", "len",
+        self.defined_names = {"float", "int", "str", "list", "dict", "len", "zip",
              "print", "get_ipython"}
         self.locals = defaultdict(set)
 
@@ -165,7 +165,6 @@ class ScopeManager(object):
     
     def build_arg_map(self, args):
         local_map = {}
-        # "self"/first arg should be handled differently [TODO]
         for arg in args.posonlyargs:
             new_name = self.getName(arg.arg, assigned=True, _ctx = self.get_tmp_new_ctx())
             local_map[arg.arg] = new_name
