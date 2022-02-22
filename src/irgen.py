@@ -91,7 +91,8 @@ class CodeTransformer(ast.NodeTransformer):
         nodes, ret = self.visitNameOnly(node.body)
         nodes.append(ast.Return(ret))
         func_name = self.FManager.get_new_func()
-        return [ast.FunctionDef(func_name, node.args, nodes, [])], ast.Name(func_name)
+        func_def = ast.FunctionDef(func_name, node.args, [ast.Return(node.body)], [])
+        return [self.visit(func_def)], ast.Name(func_name)
 
     def visit_Return(self, node):
         nodes1 = []
