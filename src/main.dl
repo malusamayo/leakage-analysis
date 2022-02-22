@@ -339,7 +339,7 @@ FilteredTrainingMethod(meth) :-
 // ---- pointer analysis ----
 
 .decl VarPointsTo(var:Var, ctx:Context, value:Value, hctx:HContext)
-.decl IndexContentPointsTo(baseValue:Value, baseHctx:HContext, index:Index, value:Value, hctx:HContext)
+.decl IndexContentPointsTo(baseValue:Value, baseHctx:HContext, value:Value, hctx:HContext) // always insensitive
 .decl FieldPointsTo(base:Value, baseHctx:HContext, field:Field, value:Value, hctx:HContext)
 .decl InterProcAssign(to:Var, calleeCtx:Context, from:Var, callerCtx:Context)
 .decl SliceIndex(st:Var, ed:Var, step:Var, index:Index)
@@ -364,12 +364,6 @@ SliceIndex(st, ed, step, index) :-
     (StoreSlice(_, st, ed, step, _); StoreSliceSSA(_, _, st, ed, step, _)),
     index = ValueIdMacro(ValueIdMacro(st, ed), step).
 
-// .decl TaintSource(taintValue:Value, srcValue:Value, taintType:symbol)
-// .decl TaintFrom(to:Var, from:Var)
-
-// .decl IsHeapObject(value:Value)
-// .decl IsTaintObject(value:Value)
-
 VarPointsTo(var, ctx, value, hctx) :- 
     Alloc(var, value, inMeth),
     Reachable(inMeth, ctx),
@@ -387,18 +381,18 @@ VarPointsTo(to, ctx, value, hctx) :-
     LoadIndex(to, base, _),
     VarPointsTo(base, ctx, value, hctx). 
 VarPointsTo(to, ctx, value, hctx) :- 
-    LoadIndex(to, base, idx),
+    LoadIndex(to, base, _),
     VarPointsTo(base, ctx, baseValue, baseHctx),
-    IndexContentPointsTo(baseValue, baseHctx, idx, value, hctx).
+    IndexContentPointsTo(baseValue, baseHctx, value, hctx).
 VarPointsTo(new_base, ctx, baseValue, hctx) :- 
     (StoreIndexSSA(new_base, base, _, _); StoreFieldSSA(new_base, base, _, _); StoreSliceSSA(new_base, base, _, _, _, _)),
     VarPointsTo(base, ctx, baseValue, hctx).
-IndexContentPointsTo(baseValue, baseHctx, idx, value, hctx) :- 
-    StoreIndex(base, idx, from),
+IndexContentPointsTo(baseValue, baseHctx, value, hctx) :- 
+    StoreIndex(base, _, from),
     VarPointsTo(base, ctx, baseValue, baseHctx),
     VarPointsTo(from, ctx, value, hctx).
-IndexContentPointsTo(baseValue, baseHctx, idx, value, hctx) :- 
-    StoreIndexSSA(_, base, idx, from),
+IndexContentPointsTo(baseValue, baseHctx, value, hctx) :- 
+    StoreIndexSSA(_, base, _, from),
     VarPointsTo(base, ctx, baseValue, baseHctx),
     VarPointsTo(from, ctx, value, hctx).
 
@@ -421,27 +415,21 @@ FieldPointsTo(baseValue, baseHctx, fld, value, hctx) :-
     VarPointsTo(base, ctx, baseValue, baseHctx),
     VarPointsTo(from, ctx, value, hctx).
 
-// we always allocate new values for slice reference
-// therefore we should propagate the new value back
-IndexContentPointsTo(baseValue, baseHctx, idx, value, hctx) :- 
-    LoadSlice(to, base, st, ed, step),
-    SliceIndex(st, ed, step, idx),
-    Alloc(to, value, _),
-    VarPointsTo(to, ctx, value, hctx),
-    VarPointsTo(base, ctx, baseValue, baseHctx).
-VarPointsTo(to, ctx, value, hctx) :- 
-    LoadSlice(to, base, st, ed, step),
-    SliceIndex(st, ed, step, idx),
-    VarPointsTo(base, ctx, baseValue, baseHctx),
-    IndexContentPointsTo(baseValue, baseHctx, idx, value, hctx).  
-IndexContentPointsTo(baseValue, baseHctx, idx, value, hctx) :- 
+// slices are shallow copies; the contents point to the same objects
+IndexContentPointsTo(toValue, toHctx, value, hctx) :- 
+    LoadSlice(to, from, st, ed, step),
+    SliceIndex(st, ed, step, _),
+    VarPointsTo(to, ctx, toValue, toHctx),
+    VarPointsTo(from, ctx, fromValue, fromHctx),
+    IndexContentPointsTo(fromValue, fromHctx, value, hctx).  
+IndexContentPointsTo(baseValue, baseHctx, value, hctx) :- 
     StoreSlice(base, st, ed, step, from),
-    SliceIndex(st, ed, step, idx),
+    SliceIndex(st, ed, step, _),
     VarPointsTo(base, ctx, baseValue, baseHctx),
     VarPointsTo(from, ctx, value, hctx).
-IndexContentPointsTo(baseValue, baseHctx, idx, value, hctx) :- 
+IndexContentPointsTo(baseValue, baseHctx, value, hctx) :- 
     StoreSliceSSA(_, base, st, ed, step, from),
-    SliceIndex(st, ed, step, idx),
+    SliceIndex(st, ed, step, _),
     VarPointsTo(base, ctx, baseValue, baseHctx),
     VarPointsTo(from, ctx, value, hctx).
 
@@ -566,7 +554,7 @@ FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
     ActualParam(fromIdx, invo, fromList),
     VarPointsTo(fromList, toCtx, fromListValue, baseHctx),
     VarPointsTo(from, fromCtx, fromValue, hctx),
-    IndexContentPointsTo(fromListValue, baseHctx, _, fromValue, hctx),
+    IndexContentPointsTo(fromListValue, baseHctx, fromValue, hctx),
     ActualReturn(toIdx, invo, to).
 
 NonDataTransferEdge(to, from) :-
@@ -870,6 +858,8 @@ MultiUseTestLeak(test, invo, meth) :-
 .output TaintStartsTarget
 // .output TaintedVar
 .output VarPointsTo
+.output FieldPointsTo
+.output IndexContentPointsTo
 .output DataOverlap
 .output ModelOverlap
 .output PreProcessingLeak
