@@ -50,7 +50,6 @@ def test_dataFrameMapper():
 
 def test_scaler():
     template("nb_194503.py", ["Unknown.fit"])
-    template("nb_273933.py", []) # "Unknown.fit"]) , "KNeighborsClassifier.fit"]) [context-insensitivity]
     template("nb_362989.py", ["GaussianNB.fit", "Unbound.fit"])
     template("nb_292583.py", ["GridSearchCV.fit", "AdaBoostClassifier.fit", "Any | Unknown | type.fit", "Unknown.fit"]) 
     template("nb_473437.py", [])
@@ -80,8 +79,11 @@ def test_loop():
     template("nb_175471.py", ["MultinomialNB.fit"]) # , "Unknown.fit"]) [could not handle indexing]
     template("nb_248151.py", ["Unbound.fit"]) 
 
+def test_context_sensitivity():
+    template("nb_273933.py", ["GridSearchCV.fit", "Unknown.fit", "KNeighborsClassifier.fit"])
+
 def test_classdef():
-    template("nb_424904.py", ['Unknown | type.fit']) 
+    template("nb_424904.py", []) #'Unknown | type.fit']) [could not distinguish non-dataflow & flow insensitivity]
 
 def test_funcdef():
     template("nb_481597.py", ["RandomForestRegressor.fit"]) 
