@@ -39,6 +39,8 @@
 // .decl FormalKeyParam(keyword:Var, meth:Method)
 .decl ActualReturn(index:number, invo:Invocation, var:Var)
 .decl FormalReturn(index:number, meth:Method, var:Var)
+.decl MethodUpdate(index:number, meth:Method)
+
 .decl VarInMethod(var:Var, meth:Method)
 .decl VarType(var:Var, type:Type)
 .decl Alloc(var:Var, value:Value, inMeth:Method)
@@ -72,6 +74,7 @@
 .input ActualReturn
 .input FormalReturn
 // .input CallGraphEdge
+.input VarInMethod
 .input VarType
 .input Alloc
 .input LocalMethod
@@ -194,6 +197,11 @@ ParamContentToRetCondEquivFlow(0, 1, 173, meth) :-
 
 FlowCondition(173, "axis", "1").
 
+// Method updates inputs
+MethodUpdate(0, "pandas.Series.fillna").
+MethodUpdate(0, meth) :-
+    Invoke(_, meth, _),
+    match(".*[.](fit|fit_transform)", meth).
 
 // taint analysis input relations
 .decl ParamToRetTaintSourceMethod(to:number, from:number, method:Method, taintType:symbol)
@@ -383,7 +391,7 @@ VarPointsTo(to, ctx, value, hctx) :-
     VarPointsTo(base, ctx, baseValue, baseHctx),
     IndexContentPointsTo(baseValue, baseHctx, idx, value, hctx).
 VarPointsTo(new_base, ctx, baseValue, hctx) :- 
-    (StoreIndexSSA(new_base, base, _, _); StoreFieldSSA(new_base, base, _, _)),
+    (StoreIndexSSA(new_base, base, _, _); StoreFieldSSA(new_base, base, _, _)), // [TODO]: slices!
     VarPointsTo(base, ctx, baseValue, hctx).
 IndexContentPointsTo(baseValue, baseHctx, idx, value, hctx) :- 
     StoreIndex(base, idx, from),
@@ -498,6 +506,25 @@ FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
     (StoreIndexSSA(to, from, _, _); StoreFieldSSA(to, from, _, _); StoreSliceSSA(to, from, _, _, _, _);
     InterProcAssign(to, _, from, _); AssignVar(to, from)).
 
+FlowFromEdge(from, fromCtx, to, toCtx,  "normal"),
+FlowFromEdge(from, fromCtx, to, toCtx,  "equiv") :-
+    (StoreIndexSSA(to, mid, _, _); StoreFieldSSA(to, mid, _, _); StoreSliceSSA(to, mid, _, _, _, _)),
+    VarPointsTo(to, toCtx, value, hctx),
+    VarPointsTo(mid, midCtx, value, hctx),
+    VarPointsTo(from, fromCtx, value, hctx).
+
+FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
+FlowFromEdge(to, toCtx, from, fromCtx,  "equiv") :-
+    CallGraphEdge(invo, _, meth, _),
+    MethodUpdate(fromIdx, meth),
+    ActualParam(fromIdx, invo, from),
+    VarPointsTo(to, toCtx, value, hctx),
+    VarPointsTo(from, fromCtx, value, hctx).
+
+FlowFromEdge(from, fromCtx, from, fromCtx, "normal"),
+FlowFromEdge(from, fromCtx, from, fromCtx, "equiv")  :-
+    VarPointsTo(from, fromCtx, _, _).
+
 FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
     FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
     LoadField(to, from, f),
@@ -559,15 +586,15 @@ FlowFrom(to, toCtx, from, fromCtx, tag) :-
 FlowFromExtended(to, toCtx, from, fromCtx, tag) :-
     FlowFrom(to, toCtx, from, fromCtx, tag).
 
-FlowFromExtended(to, toCtx, from, fromCtx, "data"),
-FlowFromExtended(to, toCtx, from, fromCtx, "equiv") :-
-    VarPointsTo(to, toCtx, value, hctx),
-    VarPointsTo(from, fromCtx, value, hctx),
-    !IsModel(to), !IsModel(from).
+// FlowFromExtended(to, toCtx, from, fromCtx, "data"),
+// FlowFromExtended(to, toCtx, from, fromCtx, "equiv") :-
+//     VarPointsTo(to, toCtx, value, hctx),
+//     VarPointsTo(from, fromCtx, value, hctx),
+//     !IsModel(to), !IsModel(from).
 
-FlowFromExtended(to, toCtx, from, fromCtx, "normal") :-
-    VarPointsTo(to, toCtx, value, hctx),
-    VarPointsTo(from, fromCtx, value, hctx).
+// FlowFromExtended(to, toCtx, from, fromCtx, "normal") :-
+//     VarPointsTo(to, toCtx, value, hctx),
+//     VarPointsTo(from, fromCtx, value, hctx).
 
 // FlowFromExtended(to, from, "data"),
 // FlowFromExtended(to, from, "equiv"),
