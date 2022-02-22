@@ -6,7 +6,7 @@ from collections import defaultdict
 from .scope import ScopeManager
 from .factgen import FactManager
 
-# definition of phi function, for the convience of type checking
+# definition of injected functions, for the convience of type checking
 phi_def_code = '''
 def __phi__(phi_0, phi_1):
     if phi_0:
@@ -23,7 +23,10 @@ def global_wrapper(x):
 
 '''
 
-
+'''
+Transform code to a simpler IR, which is easier to translate to datalog facts
+The exact semantics may not be equivalent
+'''
 class CodeTransformer(ast.NodeTransformer):
     def __init__(self) -> None:
         super().__init__()
@@ -230,8 +233,6 @@ class CodeTransformer(ast.NodeTransformer):
         return nodes1 + nodes2 + [ast.Assert(new_test, new_msg)]
 
     def visit_Expr(self, node):
-        # nodes, new_node = self.visit(node.value)
-        # return nodes + [ast.Expr(new_node)]
         rets = self.generic_visit(node)
         if len(rets.value) == 2:
             assert type(rets.value[0]) == list
@@ -253,7 +254,6 @@ class CodeTransformer(ast.NodeTransformer):
             nodes, new_node = self.visit(value)
             nodes1, target = self.visit_Name(target, assigned = True)
             nodes = nodes + nodes1 + [ast.Assign([target], new_node)]
-            # assert 0, "Unkown source type! " + str(type(value))
         return nodes
 
     def handle_single_assign(self, target, value):

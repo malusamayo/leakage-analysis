@@ -144,6 +144,10 @@ class FactGenerator(ast.NodeVisitor):
             for invo in self.meth2invokes[meth_name]:
                 self.FManager.add_fact("InvokeInLoop", (invo,))
 
+    def add_loop_facts(self, cur_invo, meth_name):
+        self.FManager.add_fact("InvokeInLoop", (cur_invo,))
+        self.meth_in_loop.add(meth_name)
+
     def visit_Module(self, node) :
         ret = ast.NodeTransformer.generic_visit(self, node)
         self.mark_loopcalls()
@@ -170,15 +174,8 @@ class FactGenerator(ast.NodeVisitor):
     def visit_FunctionDef(self, node):
         self.scope_stack.append(node.name)
         self.FManager.add_fact("LocalMethod", (self.get_cur_sig(),))
-        # if len(self.scope_stack) > 2:
-        #     self.FManager.add_fact("LocalMethod", ('.'.join(self.scope_stack[1:]),))
         
-        # meth = node.name
         meth = self.get_cur_sig()
-        # if self.in_class:
-        #     meth = '.'.join(self.scope_stack[1:])
-        #     if node.name == "__init__":
-        #         meth = '.'.join(self.scope_stack[1:-1])
         for i, arg in enumerate(node.args.args):
             self.mark_localvars(arg.arg)
             if self.in_class:
@@ -367,22 +364,8 @@ class FactGenerator(ast.NodeVisitor):
                 self.handle_assign_value(target.value, node.value)
             elif type(target) == ast.Attribute:
                 assert False, "Case deprecated!"
-                assert type(target.value) == ast.Name
-                assert type(node.value) == ast.Name
-                self.FManager.add_fact("StoreField", (target.value.id, target.attr, node.value.id))
             elif type(target) == ast.Subscript:
                 assert False, "Case deprecated!"
-                assert type(target.value) == ast.Name
-                assert type(node.value) == ast.Name
-                if type(target.slice) == ast.ExtSlice:
-                    self.FManager.add_fact("StoreIndex", (target.value.id, "slice_placeholder", node.value.id))
-                elif type(target.slice) == ast.Slice:
-                    slice_ids = [x.id if x else "none" for x in [target.slice.lower, target.slice.upper, target.slice.step]]
-                    self.FManager.add_fact("StoreSlice", (target.value.id, *slice_ids, node.value.id))
-                else:
-                    assert type(target.slice) == ast.Index
-                    assert type(target.slice.value) == ast.Name
-                    self.FManager.add_fact("StoreIndex", (target.value.id, target.slice.value.id, node.value.id))
             elif type(target) == ast.Tuple:
                 assert type(node.value) == ast.Call
                 cur_invo = self.visit_Call(node.value)
@@ -396,16 +379,12 @@ class FactGenerator(ast.NodeVisitor):
 
         return node
     
-
-    def add_loop_facts(self, cur_invo, meth_name):
-        self.FManager.add_fact("InvokeInLoop", (cur_invo,))
-        self.meth_in_loop.add(meth_name)
-
     def visit_Call(self, node):
         cur_invo = self.FManager.get_new_invo()
         self.meth2invokes[self.get_cur_sig()].append(cur_invo)
         if type(node.func) == ast.Attribute:
             hasInnerCall = self.visit_Attribute(node.func, cur_invo=cur_invo)
+            # simulating invocations insde higher-order functions
             if hasInnerCall:
                 new_invo = self.FManager.get_new_invo()
                 func_name = ""
