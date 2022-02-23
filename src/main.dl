@@ -459,6 +459,24 @@ VarPointsTo(to, toCtx, value, hctx) :-
     InterProcAssign(to, toCtx, from, fromCtx),
     VarPointsTo(from, fromCtx, value, hctx).
 
+// ---- alias & access path ----
+.decl AccessFrom(to:Var, toCtx:Context, from:Var, fromCtx:Context)
+.decl Alias(to:Var, toCtx:Context, from:Var, fromCtx:Context)
+
+AccessFrom(to, toCtx, from, fromCtx) :-
+    VarPointsTo(to, toCtx, baseValue, baseHctx),
+    (FieldPointsTo(baseValue, baseHctx, fld, value, hctx); IndexContentPointsTo(baseValue, baseHctx, value, hctx)),
+    VarPointsTo(from, fromCtx, value, hctx).
+
+AccessFrom(to, toCtx, from, fromCtx) :-
+    AccessFrom(to, toCtx, mid, midCtx),
+    AccessFrom(mid, midCtx, from, fromCtx).
+
+Alias(from, fromCtx, to, toCtx),
+Alias(to, toCtx, from, fromCtx) :-
+    VarPointsTo(to, toCtx, value, hctx),
+    VarPointsTo(from, fromCtx, value, hctx).
+
 /* -------------------
     Information flow analysis
 ------------------- */
@@ -512,16 +530,15 @@ FlowFromEdge(from, fromCtx, to, toCtx,  "equiv") :-
     (StoreIndexSSA(to, mid, _, _); StoreFieldSSA(to, mid, _, _); StoreSliceSSA(to, mid, _, _, _, _)),
     VarPointsTo(to, toCtx, value, hctx),
     VarPointsTo(mid, midCtx, value, hctx),
-    VarPointsTo(from, fromCtx, value, hctx),
+    Alias(to, toCtx, from, fromCtx),
     toCtx = midCtx.
 FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
 FlowFromEdge(to, toCtx, from, fromCtx,  "equiv") :-
     CallGraphEdge(invo, _, meth, _),
     MethodUpdate(fromIdx, meth),
     ActualParam(fromIdx, invo, from),
-    VarPointsTo(to, toCtx, value, hctx),
-    VarPointsTo(from, fromCtx, value, hctx).
-// [TODO] updates will also propagate to objects that could acess it
+    Alias(to, toCtx, from, fromCtx).
+// [TODO] updates will also propagate to objects that could acess it?
 
 // self-loop
 FlowFromEdge(from, fromCtx, from, fromCtx, "normal"),
