@@ -3,6 +3,8 @@ import ast
 import astunparse
 import json
 import shutil
+
+from src.global_collector import GlobalCollector
 from . import factgen
 from .irgen import CodeTransformer
 
@@ -29,7 +31,8 @@ def load_input(input_path):
     return tree
 
 def ir_transform(tree, ir_path):
-    v = CodeTransformer()
+    ignored_vars = GlobalCollector().visit(tree)
+    v = CodeTransformer(ignored_vars)
     new_tree = v.visit(tree)
     new_code = astunparse.unparse(new_tree)
     # print(new_code)
