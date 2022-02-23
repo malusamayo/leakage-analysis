@@ -357,14 +357,12 @@ VarPointsTo(to, ctx, value, hctx) :-
     AssignVar(to, from),
     VarPointsTo(from, ctx, value, hctx). 
 
-// assignment from global
+// assignment from/to global
 VarPointsTo(to, meth_ctx, value, hctx) :- 
     AssignGlobal(to, from),
     VarInMethod(to, meth),
     Reachable(meth, meth_ctx),
     VarPointsTo(from, _, value, hctx).
-
-// [TODO] assignment to global
 
 // load/store fields
 // the analysis is field-insensitive for unknown fields 

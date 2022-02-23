@@ -39,18 +39,19 @@ class ScopeManager(object):
     
     def update_globals(self, names):
         for name in names:
-            self.globalOrNonloacls['.'.join(self.named_ctx)].add(name)
+            self.globalOrNonloacls[self.get_cur_sig()].add(name)
 
     def in_globals(self, name):
-        return name in self.globalOrNonloacls['.'.join(self.named_ctx)]
+        return name in self.globalOrNonloacls[self.get_cur_sig()]
 
     def update_locals(self, name):
-        self.locals['.'.join(self.named_ctx)].add(name)
+        self.locals[self.get_cur_sig()].add(name)
     
     def in_locals(self, name):
-        return name in self.locals['.'.join(self.named_ctx)]
+        return name in self.locals[self.get_cur_sig()]
     
     def get_cur_sig(self):
+        # [TODO] do not consider inner method now
         if self.named_ctx and self.named_ctx[-1] == "__init__":
             return '.'.join(self.named_ctx[:-1])
         return '.'.join(self.named_ctx)
@@ -87,7 +88,7 @@ class ScopeManager(object):
             if ctx == []:
                 self.name_map[complete_key] = id
                 if assigned:
-                    self.locals['.'.join(self.named_ctx)].add(id)
+                    self.locals[self.get_cur_sig()].add(id)
                     if id in self.name_nextid_map:
                         self.name_map[complete_key] = id + '$' + str(self.name_nextid_map[id])
                         self.name_nextid_map[id] += 1
@@ -100,7 +101,7 @@ class ScopeManager(object):
             if key in self.name_map:
                 # update when assigned
                 if assigned:
-                    self.locals['.'.join(self.named_ctx)].add(id)
+                    self.locals[self.get_cur_sig()].add(id)
                     # new locals
                     if key != complete_key:
                         self.name_map[complete_key] = self.name_map[key]
@@ -218,7 +219,7 @@ class ScopeManager(object):
             local_map[arg.arg] = new_name
             local_map["$kwarg"] = True
             arg.arg = new_name
-        self.arg_map['.'.join(self.named_ctx)] = local_map
+        self.arg_map[self.get_cur_sig()] = local_map
 
 
     def get_mapped_arg(self, func_node, arg):
