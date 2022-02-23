@@ -28,10 +28,10 @@ Transform code to a simpler IR, which is easier to translate to datalog facts
 The exact semantics may not be equivalent
 '''
 class CodeTransformer(ast.NodeTransformer):
-    def __init__(self) -> None:
+    def __init__(self, ignored_vars) -> None:
         super().__init__()
         self.FManager = FactManager()
-        self.scopeManager = ScopeManager()
+        self.scopeManager = ScopeManager(ignored_vars)
         self.unchanged_nodeclasses = [ast.Global, ast.Nonlocal, ast.Pass, ast.Break, ast.Continue, ast.Import, ast.ImportFrom, ast.alias]
 
     def visit(self, node):
@@ -39,12 +39,6 @@ class CodeTransformer(ast.NodeTransformer):
         method = 'visit_' + node.__class__.__name__
         visitor = getattr(self, method, self.generic_visit)
         return visitor(node)
-
-    def visit_alias(self, node):
-        self.scopeManager.defined_names.add(node.name)
-        if node.asname:
-            self.scopeManager.defined_names.add(node.asname)
-        return node
 
     def generic_visit(self, node):
         rets = ast.NodeTransformer.generic_visit(self, node)
@@ -74,6 +68,12 @@ class CodeTransformer(ast.NodeTransformer):
             body[:] = new_values
         self.scopeManager.leaveBlock()
         return body
+
+    def visit_alias(self, node):
+        self.scopeManager.defined_names.add(node.name)
+        if node.asname:
+            self.scopeManager.defined_names.add(node.asname)
+        return node
 
     def visit_ClassDef(self, node):
         self.scopeManager.enterNamedBlock(node.name)

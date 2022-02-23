@@ -3,6 +3,7 @@ import ast
 import astunparse
 import json
 from collections import defaultdict
+from .scope import ScopeManager
 
 class FactManager(object):
 
@@ -97,6 +98,7 @@ class FactGenerator(ast.NodeVisitor):
     def __init__(self, json_path) -> None:
         super().__init__()
         self.FManager = FactManager()
+        self.scopeManager = ScopeManager()
         self.load_type_map(json_path)
         self.meth_map = {
             ast.Set: self.FManager.get_new_set,
@@ -108,7 +110,6 @@ class FactGenerator(ast.NodeVisitor):
             ast.ListComp: self.FManager.get_new_list,
             ast.DictComp: self.FManager.get_new_dict,
         }
-        self.scope_stack = ["module"]
         self.import_map = {}
         self.meth2invokes = defaultdict(list)
         self.meth_in_loop = set()
@@ -132,11 +133,12 @@ class FactGenerator(ast.NodeVisitor):
         return key
 
     def get_cur_sig(self):
-        if self.scope_stack[-1] == "__init__":
-            return '.'.join(self.scope_stack[1:-1])
-        return '.'.join(self.scope_stack[1:])
+        return self.scopeManager.get_cur_sig()
     
     def mark_localvars(self, varname):
+        if self.scopeManager.in_globals(varname):
+            self.FManager.add_fact("AssignGlobal", (varname, varname))
+            return
         self.FManager.add_fact("VarInMethod", (varname, self.get_cur_sig()))
 
     def mark_loopcalls(self):
@@ -162,17 +164,25 @@ class FactGenerator(ast.NodeVisitor):
             self.import_map[name.name] = '.'.join([node.module, name.name])
         return ast.NodeTransformer.generic_visit(self, node)
 
+    def visit_Global(self, node):
+        self.scopeManager.update_globals(node.names)
+        return node
+
+    def visit_Nonlocal(self, node):
+        self.scopeManager.update_globals(node.names)
+        return node
+
     def visit_ClassDef(self, node):
-        self.scope_stack.append(node.name)
+        self.scopeManager.enterNamedBlock(node.name)
         self.in_class = True
         self.FManager.add_fact("LocalClass", (node.name,))
         ret = ast.NodeTransformer.generic_visit(self, node)
         self.in_class = False
-        self.scope_stack.pop()
+        self.scopeManager.leaveNamedBlock()
         return ret
 
     def visit_FunctionDef(self, node):
-        self.scope_stack.append(node.name)
+        self.scopeManager.enterNamedBlock(node.name)
         self.FManager.add_fact("LocalMethod", (self.get_cur_sig(),))
         
         meth = self.get_cur_sig()
@@ -186,7 +196,7 @@ class FactGenerator(ast.NodeVisitor):
         if self.in_class and node.name == "__init__":
             self.FManager.add_fact("Alloc", (node.args.args[0].arg, self.FManager.get_new_heap(), self.get_cur_sig()))
             self.FManager.add_fact("FormalReturn", (0, meth, node.args.args[0].arg))
-        self.scope_stack.pop()
+        self.scopeManager.leaveNamedBlock()
         return ret
     
     def visit_For(self, node):

@@ -3,7 +3,7 @@ import ast
 from collections import defaultdict
 
 class ScopeManager(object):
-    def __init__(self) -> None:
+    def __init__(self, ignored_vars=set()) -> None:
         self.ctx = ['module']
         self.named_ctx = []
 
@@ -13,9 +13,19 @@ class ScopeManager(object):
         self.updated_in_ctx = defaultdict(set)
         self.defined_in_ctx = defaultdict(set)
 
-        self.defined_names = {"float", "int", "str", "list", "dict", "len", "zip",
-             "print", "get_ipython"}
+        self.defined_names = {
+            'abs', 'all', 'any', 'apply', 'basestring', 'bin', 'bool', 'buffer', 'bytearray', 'bytes', 
+            'callable', 'chr', 'classmethod', 'cmp', 'coerce', 'compile', 'complex', 'copyright', 'credits', 
+            'delattr', 'dict', 'dir', 'divmod', 'enumerate', 'eval', 'execfile', 'exit', 'file', 'filter', 
+            'float', 'format', 'frozenset', 'getattr', 'globals', 'hasattr', 'hash', 'help', 'hex', 'id', 
+            'input', 'int', 'intern', 'isinstance', 'issubclass', 'iter', 'len', 'license', 'list', 'locals', 
+            'long', 'map', 'max', 'memoryview', 'min', 'next', 'object', 'oct', 'open', 'ord', 'pow', 'print', 
+            'property', 'quit', 'range', 'raw_input', 'reduce', 'reload', 'repr', 'reversed', 'round', 'set', 
+            'setattr', 'slice', 'sorted', 'staticmethod', 'str', 'sum', 'super', 'tuple', 'type', 'unichr', 'unicode', 'vars', 'xrange', 'zip',
+            'get_ipython', 'display'}
         self.locals = defaultdict(set)
+        self.globalOrNonloacls = defaultdict(set) # specified with global/nonlocal keywords
+        self.ignored_vars = ignored_vars
 
         self.ctx_num = 0
 
@@ -27,6 +37,24 @@ class ScopeManager(object):
         self.ctx_num += 1
         return "ctx" + str(old_var)
     
+    def update_globals(self, names):
+        for name in names:
+            self.globalOrNonloacls['.'.join(self.named_ctx)].add(name)
+
+    def in_globals(self, name):
+        return name in self.globalOrNonloacls['.'.join(self.named_ctx)]
+
+    def update_locals(self, name):
+        self.locals['.'.join(self.named_ctx)].add(name)
+    
+    def in_locals(self, name):
+        return name in self.locals['.'.join(self.named_ctx)]
+    
+    def get_cur_sig(self):
+        if self.named_ctx and self.named_ctx[-1] == "__init__":
+            return '.'.join(self.named_ctx[:-1])
+        return '.'.join(self.named_ctx)
+
     def fill_updated(self, vars, _ctx):
         ctx_key = '.'.join(_ctx)
         defs = self.defined_in_ctx[ctx_key]
@@ -46,6 +74,8 @@ class ScopeManager(object):
         return False
 
     def getName(self, id, assigned=False, _ctx=None):
+        if id in self.ignored_vars:
+            return id
         if _ctx == None:
             ctx = [x for x in self.ctx]
         else:

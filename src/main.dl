@@ -361,7 +361,7 @@ VarPointsTo(to, ctx, value, hctx) :-
 VarPointsTo(to, meth_ctx, value, hctx) :- 
     AssignGlobal(to, from),
     VarInMethod(to, meth),
-    CallGraphEdge(_, _, meth, meth_ctx),
+    Reachable(meth, meth_ctx),
     VarPointsTo(from, _, value, hctx).
 
 // [TODO] assignment to global
