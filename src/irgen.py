@@ -89,14 +89,9 @@ class CodeTransformer(ast.NodeTransformer):
         self.scopeManager.enterNamedBlock(node.name)
         self.scopeManager.build_arg_map(node.args)
         
-        # global variable reference [TODO]
         node.body = self.visit_Body(node.body)
         self.scopeManager.leaveNamedBlock()
         return node
-
-    def visit_AsyncFunctionDef(self, node):
-        # ast.Await/AsyncFor/AsyncWith [TODO]
-        return self.visit_FunctionDef(node)
 
     def visit_Lambda(self, node):
         func_name = self.FManager.get_new_func()
@@ -205,8 +200,6 @@ class CodeTransformer(ast.NodeTransformer):
         node.body = self.visit_Body(node.body)
         return nodes + [node]
 
-    # ignore pattern matching for now
-
     def visit_Delete(self, node):
         nodes = []
         new_vars = []
@@ -224,6 +217,21 @@ class CodeTransformer(ast.NodeTransformer):
         if node.cause:
             nodes2, new_cause = self.visitNameOnly(node.cause)
         return nodes1 + nodes2 + [ast.Raise(new_exec, new_cause)]
+
+    # async ast nodes
+    def visit_AsyncFunctionDef(self, node):
+        return self.visit_FunctionDef(node)
+
+    def visit_AsyncFor(self, node):
+        return self.visit_For(node)
+    
+    def visit_AsyncWith(self, node):
+        return self.visit_With(node)
+    
+    def visit_Await(self, node):
+        return self.visit(node.value)
+    
+    # ignore pattern matching for now
 
     def visit_Assert(self, node):
         nodes1, new_test = self.visitNameOnly(node.test)
