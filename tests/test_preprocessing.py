@@ -28,7 +28,7 @@ def template(test_file, taintMethods):
 
 def test_basic():
     template("test0.py", ["LogisticRegression.fit"])
-    template("test1.py", ["LogisticRegression.fit"]) # should not use distribution of whole test set as well!
+    template("test1.py", ["LogisticRegression.fit"])
     template("test2.py", ["LogisticRegression.fit"])
     template("test3.py", [])
     template("test4.py", [])
@@ -51,7 +51,6 @@ def test_dataFrameMapper():
 def test_scaler():
     template("nb_194503.py", ["Unknown.fit"])
     template("nb_362989.py", ["GaussianNB.fit", "Unbound.fit"])
-    template("nb_292583.py", ["GridSearchCV.fit", "AdaBoostClassifier.fit", "Any | Unknown | type.fit", "Unknown.fit"]) 
     template("nb_473437.py", [])
 
 def test_pca():
@@ -86,6 +85,7 @@ def test_classdef():
     template("nb_424904.py", []) #'Unknown | type.fit']) [could not distinguish non-dataflow & flow insensitivity]
 
 def test_funcdef():
+    template("nb_292583.py", ["GridSearchCV.fit", "AdaBoostClassifier.fit", "Any | Unknown | type.fit", "Unknown.fit"]) 
     template("nb_481597.py", ["RandomForestRegressor.fit"]) 
 
 def test_branch():
