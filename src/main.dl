@@ -474,7 +474,8 @@ FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
     ActualReturn(_, invo, to),
     (!LocalMethod(meth); meth = "__phi__"),
     VarPointsTo(to, toCtx, _, _),
-    VarPointsTo(from, fromCtx, _, _).
+    VarPointsTo(from, fromCtx, _, _),
+    toCtx = fromCtx.
 
 // specified flows between parameters
 FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
@@ -483,7 +484,8 @@ FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
     ActualParam(toIdx, invo, to),
     ActualParam(fromIdx, invo, from),
     VarPointsTo(to, toCtx, _, _),
-    VarPointsTo(from, fromCtx, _, _).
+    VarPointsTo(from, fromCtx, _, _),
+    toCtx = fromCtx.
 
 // inter-procedural flows
 FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
@@ -491,17 +493,18 @@ FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
 
 // inner-procedural flows
 FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
-    (AssignVar(to, from); AssignGlobal(to, from); LoadIndex(to, from, _); StoreIndex(to, _, from); 
-    LoadField(to, from, _); StoreField(to, _, from); LoadSlice(to, from, _, _, _); StoreSlice(to, _, _, _, from);
+    (AssignVar(to, from); AssignBinOp(to, from, _, _); AssignBinOp(to, _, _, from);
+    LoadIndex(to, from, _); StoreIndex(to, _, from); LoadField(to, from, _); StoreField(to, _, from); LoadSlice(to, from, _, _, _); StoreSlice(to, _, _, _, from);
     StoreIndexSSA(to, _, _, from); StoreFieldSSA(to, _, _, from); StoreSliceSSA(to, _, _, _, _, from);
     StoreIndexSSA(to, from, _, _); StoreFieldSSA(to, from, _, _); StoreSliceSSA(to, from, _, _, _, _)),
     VarPointsTo(to, toCtx, _, _),
-    VarPointsTo(from, fromCtx, _, _).
+    VarPointsTo(from, fromCtx, _, _),
+    toCtx = fromCtx.
 
-FlowFromEdge(to, toCtx, left, leftCtx, "normal"),
-FlowFromEdge(to, toCtx, right, rightCtx, "normal") :-
-    AssignBinOp(to, left, _, right),
-    VarPointsTo(to, toCtx, _, _), VarPointsTo(left, leftCtx, _, _), VarPointsTo(right, rightCtx, _, _).
+FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
+    AssignGlobal(to, from),
+    VarPointsTo(to, toCtx, _, _),
+    VarPointsTo(from, fromCtx, _, _).
 
 // in-place updates will trigger flow to aliases
 FlowFromEdge(from, fromCtx, to, toCtx,  "normal"),
@@ -509,7 +512,8 @@ FlowFromEdge(from, fromCtx, to, toCtx,  "equiv") :-
     (StoreIndexSSA(to, mid, _, _); StoreFieldSSA(to, mid, _, _); StoreSliceSSA(to, mid, _, _, _, _)),
     VarPointsTo(to, toCtx, value, hctx),
     VarPointsTo(mid, midCtx, value, hctx),
-    VarPointsTo(from, fromCtx, value, hctx).
+    VarPointsTo(from, fromCtx, value, hctx),
+    toCtx = midCtx.
 FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
 FlowFromEdge(to, toCtx, from, fromCtx,  "equiv") :-
     CallGraphEdge(invo, _, meth, _),
@@ -517,6 +521,7 @@ FlowFromEdge(to, toCtx, from, fromCtx,  "equiv") :-
     ActualParam(fromIdx, invo, from),
     VarPointsTo(to, toCtx, value, hctx),
     VarPointsTo(from, fromCtx, value, hctx).
+// [TODO] updates will also propagate to objects that could acess it
 
 // self-loop
 FlowFromEdge(from, fromCtx, from, fromCtx, "normal"),
@@ -654,7 +659,7 @@ DataOverlap(train, ctx1, test, ctx2) :-
 ModelOverlap(model1, ctx1, model2, ctx2) :-
     IsModel(model1), IsModel(model2),
     FlowFromExtended(model1, ctx1, model2, ctx2, _).
-ModelOverlap(model2, ctx2, model1, ctx1) :- ModelOverlap(model1, ctx1, model2, ctx2).
+// ModelOverlap(model2, ctx2, model1, ctx1) :- ModelOverlap(model1, ctx1, model2, ctx2).
 
 
 /* -----------------------------
@@ -740,7 +745,7 @@ ValDataWithModel(testModel2, val, invo2, meth2) :-
 ValDataWithModel(model, test, invo, meth) :-
     ValOrTestDataWithModel(model, test, invo, meth),
     ValDataWithModel(testModel, val, invo, meth),
-    ModelOverlap(model, ctx1, testModel, ctx2),
+    (ModelOverlap(model, ctx1, testModel, ctx2); ModelOverlap(testModel, ctx2, model, ctx1)),
     DataOverlap(test, ctx1, val, ctx2).
 
 // all remaining data is treated as validation data
@@ -819,7 +824,7 @@ OverlapLeak(testModel, trainModel, invo, meth) :-
     ValOrTestDataWithModel(testModel, test, _, _),
     DataOverlap(train, _, test, _),
     train != test,
-    ModelOverlap(trainModel, _, testModel, _).
+    ModelOverlap(testModel, _, trainModel, _).
 
 /* -----------------------------
 No test data detection
