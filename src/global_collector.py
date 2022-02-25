@@ -72,7 +72,8 @@ class GlobalCollector(ast.NodeVisitor):
         return ret
     
     def visit_withitem(self, node):
-        self.handle_single_assign(node.optional_vars)
+        if node.optional_vars:
+            self.handle_single_assign(node.optional_vars)
         return node
 
     def handle_name_assigned(self, name):
