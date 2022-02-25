@@ -12,9 +12,9 @@ def write_to_log(filename, msg=""):
 if __name__ == "__main__":
     dir_path = sys.argv[1]
     log = open(os.path.join(dir_path, "log.txt"), "a")
-    for file in os.listdir(dir_path):
-        if not file.endswith(".py") or file.endswith(".ir.py"):
-            continue
+    files = filter(lambda file: file.endswith(".py") and not file.endswith(".ir.py"), os.listdir(dir_path))
+    sorted_files = sorted(files, key=lambda x: int(x.split('_')[1].split('.')[0]))
+    for file in sorted_files:
         file_path  = os.path.join(dir_path, file)
         result = subprocess.run(["2to3", "-w", file_path]) 
         if result.returncode:
