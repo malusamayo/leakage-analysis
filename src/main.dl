@@ -421,17 +421,25 @@ IndexContentPointsTo(toValue, toHctx, value, hctx) :-
     SliceIndex(st, ed, step, _),
     VarPointsTo(to, ctx, toValue, toHctx),
     VarPointsTo(from, ctx, fromValue, fromHctx),
-    IndexContentPointsTo(fromValue, fromHctx, value, hctx).  
-IndexContentPointsTo(baseValue, baseHctx, value, hctx) :- 
-    StoreSlice(base, st, ed, step, from),
-    SliceIndex(st, ed, step, _),
-    VarPointsTo(base, ctx, baseValue, baseHctx),
-    VarPointsTo(from, ctx, value, hctx).
-IndexContentPointsTo(baseValue, baseHctx, value, hctx) :- 
-    StoreSliceSSA(_, base, st, ed, step, from),
-    SliceIndex(st, ed, step, _),
-    VarPointsTo(base, ctx, baseValue, baseHctx),
-    VarPointsTo(from, ctx, value, hctx).
+    IndexContentPointsTo(fromValue, fromHctx, value, hctx). 
+// // alternative modeling: slice as references
+// VarPointsTo(to, ctx, value, hctx) :- 
+//     LoadSlice(to, base, _, _, _),
+//     VarPointsTo(base, ctx, value, hctx).
+
+// IndexContentPointsTo(baseValue, baseHctx, value, hctx) :- 
+//     StoreSlice(base, st, ed, step, from),
+//     SliceIndex(st, ed, step, _),
+//     VarPointsTo(base, ctx, baseValue, baseHctx),
+//     VarPointsTo(from, ctx, value, hctx).
+// IndexContentPointsTo(baseValue, baseHctx, value, hctx) :- 
+//     StoreSliceSSA(_, base, st, ed, step, from),
+//     SliceIndex(st, ed, step, _),
+//     VarPointsTo(base, ctx, baseValue, baseHctx),
+//     VarPointsTo(from, ctx, value, hctx).
+VarPointsTo(base, ctx, value, hctx) :- 
+    (StoreSlice(base, _, _, _, from); StoreSliceSSA(_, base, _, _, _, from)),
+    VarPointsTo(from, ctx, value, hctx).  
 
 // extra cases for SSA
 VarPointsTo(new_base, ctx, baseValue, hctx) :- 
