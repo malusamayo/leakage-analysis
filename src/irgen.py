@@ -242,8 +242,7 @@ class CodeTransformer(ast.NodeTransformer):
 
     def visit_Expr(self, node):
         rets = self.generic_visit(node)
-        if len(rets.value) == 2:
-            assert type(rets.value[0]) == list
+        if len(rets.value) == 2 and type(rets.value[0]) == list:
             if type(rets.value[1]) == ast.Call:
                 call = rets.value[1]
                 if type(call.func) == ast.Attribute and call.func.attr == "fit":
@@ -276,7 +275,19 @@ class CodeTransformer(ast.NodeTransformer):
         elif type(target) in [ast.Attribute, ast.Subscript]:
             nodes1, new_target = self.visit(target)
             nodes2, new_value = self.visitNameOnly(value)
-            new_attr = ast.Constant(new_target.attr, "") if type(new_target) == ast.Attribute else new_target.slice 
+            if type(new_target) == ast.Attribute:
+                new_attr = ast.Constant(new_target.attr, "") 
+            else:
+                def handle_slice(slice):
+                    slice = [x if x else ast.Constant(None, kind="") for x in [slice.lower, slice.upper, slice.step]]
+                    new_attr = ast.Call(ast.Name("slice"), slice, [])
+                    return new_attr
+                if type(new_target.slice) == ast.Index:
+                    new_attr = new_target.slice
+                elif type(new_target.slice) == ast.Slice:
+                    new_attr = handle_slice(new_target.slice)
+                elif type(new_target.slice) == ast.ExtSlice:
+                    new_attr = ast.Tuple([handle_slice(slice) for slice in new_target.slice.dims])
             nodes3, new_name = self.visit_Name(target.value if type(target.value) == ast.Name else new_target.value, assigned=True)
             func = ast.Name("set_field_wrapper") if type(new_target) == ast.Attribute else ast.Name("set_index_wrapper")
             new_assign = [ast.Assign([new_name], ast.Call(func, [new_target.value, new_attr, new_value], []))]

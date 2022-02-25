@@ -254,13 +254,16 @@ class FactGenerator(ast.NodeVisitor):
                 if value.func.id == "set_field_wrapper":
                     self.FManager.add_fact("StoreFieldSSA", (target_name, value.args[0].id, value.args[1].value, value.args[2].id))
                 elif value.func.id == "set_index_wrapper":
-                    slice = value.args[1]
-                    if type(slice) == ast.Index:
-                        assert type(slice.value) == ast.Name
-                        self.FManager.add_fact("StoreIndexSSA", (target_name, value.args[0].id, slice.value.id, value.args[2].id))
-                    elif type(slice) == ast.Slice:
-                        self.FManager.add_fact("StoreSliceSSA", (target_name, value.args[0].id, slice.lower, slice.upper, slice.step, value.args[4].id))
-                    elif type(slice) == ast.ExtSlice:
+                    idx = value.args[1]
+                    if type(idx) == ast.Index:
+                        assert type(idx.value) == ast.Name
+                        self.FManager.add_fact("StoreIndexSSA", (target_name, value.args[0].id, idx.value.id, value.args[2].id))
+                    elif type(idx) == ast.Call:
+                        assert type(idx.func) == ast.Name
+                        idx_ids = [x.id if type(x) == ast.Name else "none" for x in idx.args]
+                        self.FManager.add_fact("StoreSliceSSA", (target_name, value.args[0].id, *idx_ids, value.args[2].id))
+                    elif type(idx) == ast.Tuple:
+                        assert all([type(s) == ast.Call for s in idx.elts])
                         self.FManager.add_fact("StoreIndexSSA", (target_name, value.args[0].id, "slice_placeholder", value.args[2].id))
                     else:
                         assert False, "Unknown slice!"
