@@ -229,5 +229,7 @@ class ScopeManager(object):
                 new_arg = self.arg_map[func_node.id][arg]
             elif "$kwarg" in self.arg_map[func_node.id]:
                 new_arg = arg
+            else:
+                new_arg = arg
             return new_arg
         return arg
