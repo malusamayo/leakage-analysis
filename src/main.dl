@@ -617,7 +617,7 @@ FlowFrom(to, toCtx, from, fromCtx, tag) :-
 // flow path transitive case
 FlowFrom(to, toCtx, from, fromCtx, tag) :-
     FlowFrom(to, toCtx, mid, midCtx, tag),
-    FlowFrom(mid, midCtx, from, fromCtx, tag).
+    FlowFromEdge(mid, midCtx, from, fromCtx, tag).
 
 // [deprecated]
 FlowFromExtended(to, toCtx, from, fromCtx, tag) :-
@@ -881,20 +881,27 @@ MultiUseTestLeak(test, invo, meth) :-
 
 // ---- outputs ----
 .output CallGraphEdge
-.output TrainTestPair
-.output TrainValPair
-.output TestDataWithModel
-.output ValDataWithModel
-.output ScoredDataWithModel
-.output FlowFromEdge
-.output FlowFrom
-.output FlowFromExtended
-.output TaintStartsTarget
+
 .output VarPointsTo
 .output FieldPointsTo
 .output IndexContentPointsTo
+.output Alias
+
+.output FlowFromEdge
+.output FlowFrom
+.output FlowFromExtended
+
 .output DataOverlap
 .output ModelOverlap
+
+.output TrainTestPair
+.output TrainValPair
+.output TrainingDataWithModel
+.output TestDataWithModel
+.output ValDataWithModel
+.output ScoredDataWithModel
+
+.output TaintStartsTarget
 .output PreProcessingLeak
 .output OverlapLeak
 .output NoTestData
