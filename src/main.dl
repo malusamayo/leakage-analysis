@@ -797,6 +797,10 @@ Leak detection rules
 .decl Leak(var:Var, invo:Invocation, meth:Method)
 .decl PreProcessingLeak(var:Var, invo:Invocation, meth:Method)
 .decl OverlapLeak(testModel:Var, trainModel:Var, invo:Invocation, meth:Method)
+.decl MultiUseTestLeak(test:Var, invo:Invocation, meth:Method)
+.decl Telemetry_PreProcessingLeak(trainModel:Var, train:Var, trainInvo:Invocation, trainMeth:Method, testModel:Var, test:Var, testInvo:Invocation, testMeth:Method, des:Var, src:Var)
+.decl Telemetry_OverlapLeak(trainModel:Var, train:Var, trainInvo:Invocation, trainMeth:Method, testModel:Var, test:Var, testInvo:Invocation, testMeth:Method)
+.decl Telemetry_MultiUseTestLeak(testModel:Var, test:Var, testInvo:Invocation, testMeth:Method, testModel2:Var, test2:Var, testInvo2:Invocation, testMeth2:Method)
 
 Leak(var, invo, meth) :-
     PreProcessingLeak(var, invo, meth);
@@ -828,10 +832,11 @@ Pre-processing leak detection
 ReduceEdge(to, toCtx, from, fromCtx) :-
     TaintStartsTarget(to, toCtx, from, fromCtx, "rowset").
 
+Telemetry_PreProcessingLeak(trainModel, train, invo, meth, testModel, test, invo2, meth2, reduced_from_src, src),
 PreProcessingLeak(src, invo, meth) :-
     (TrainTestPair(trainModel, train, testModel, test); TrainValPair(trainModel, train, testModel, test)),
     TrainingDataWithModel(trainModel, train, invo, meth),
-    // TestDataWithModel(testModel, test, _, _),
+    ValOrTestDataWithModel(testModel, test, invo2, meth2),
     ReduceEdge(reduced_from_src, r_ctx, src, src_ctx),
     (FlowFromExtended(train, _, reduced_from_src, r_ctx, _); FlowFromExtended(test, ctx1, reduced_from_src, r_ctx, _)),
     DataOverlap(test, ctx1, src, src_ctx).
@@ -844,9 +849,10 @@ Overlap leak detection
 DuplicateEdge(to, toCtx, from, fromCtx) :-
     TaintStartsTarget(to, toCtx, from, fromCtx, "dup").
 
+Telemetry_OverlapLeak(trainModel, train, invo, meth, testModel, test, invo2, meth2),
 OverlapLeak(testModel, trainModel, invo, meth) :-
     TrainingDataWithModel(trainModel, train, invo, meth),
-    ValOrTestDataWithModel(testModel, test, _, _),
+    ValOrTestDataWithModel(testModel, test, invo2, meth2),
     DataOverlap(train, _, test, _),
     train != test,
     ModelOverlap(testModel, _, trainModel, _).
@@ -854,15 +860,15 @@ OverlapLeak(testModel, trainModel, invo, meth) :-
 /* -----------------------------
 No test data detection
 ----------------------------- */
-.decl NoValAndTestData(trainModel:Var, invo:Invocation, meth:Method)
-.decl NoTestData(trainModel:Var, invo:Invocation, meth:Method)
+.decl NoValAndTestData(trainModel:Var, train:Var, invo:Invocation, meth:Method)
+.decl NoTestData(trainModel:Var, train:Var, invo:Invocation, meth:Method)
 
-NoValAndTestData(trainModel, invo, meth) :-
+NoValAndTestData(trainModel, train,  invo, meth) :-
     TrainingDataWithModel(trainModel, train, invo, meth),
     !TrainValPair(trainModel, train, _, _),
     !TrainTestPair(trainModel, train, _, _).
 
-NoTestData(trainModel, invo, meth) :-
+NoTestData(trainModel, train, invo, meth) :-
     TrainingDataWithModel(trainModel, train, invo, meth),
     TrainValPair(trainModel, train, _, _),
     !TrainTestPair(trainModel, train, _, _).
@@ -870,7 +876,7 @@ NoTestData(trainModel, invo, meth) :-
 /* -----------------------------
 Multi-used test data detection
 ----------------------------- */
-.decl MultiUseTestLeak(test:Var, invo:Invocation, meth:Method)
+Telemetry_MultiUseTestLeak(testModel, test, invo, meth, testModel2, test2, invo2, meth2),
 MultiUseTestLeak(test, invo, meth) :-
     TestDataWithModel(testModel, test, invo, meth),
     ScoredDataWithModel(testModel, test, invo, meth),
@@ -907,3 +913,6 @@ MultiUseTestLeak(test, invo, meth) :-
 .output NoTestData
 .output NoValAndTestData
 .output MultiUseTestLeak
+.output Telemetry_PreProcessingLeak
+.output Telemetry_OverlapLeak
+.output Telemetry_MultiUseTestLeak
