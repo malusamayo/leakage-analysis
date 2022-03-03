@@ -263,7 +263,6 @@ class FactGenerator(ast.NodeVisitor):
                         idx_ids = [x.id if type(x) == ast.Name else "none" for x in idx.args]
                         self.FManager.add_fact("StoreSliceSSA", (target_name, value.args[0].id, *idx_ids, value.args[2].id))
                     elif type(idx) == ast.Tuple:
-                        assert all([type(s) == ast.Call for s in idx.elts])
                         self.FManager.add_fact("StoreIndexSSA", (target_name, value.args[0].id, "slice_placeholder", value.args[2].id))
                     else:
                         assert False, "Unknown slice!"

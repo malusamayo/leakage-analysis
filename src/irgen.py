@@ -279,9 +279,12 @@ class CodeTransformer(ast.NodeTransformer):
                 new_attr = ast.Constant(new_target.attr, "") 
             else:
                 def handle_slice(slice):
-                    slice = [x if x else ast.Constant(None, kind="") for x in [slice.lower, slice.upper, slice.step]]
-                    new_attr = ast.Call(ast.Name("slice"), slice, [])
-                    return new_attr
+                    if type(slice) == ast.Index:
+                       return slice
+                    elif type(slice) == ast.Slice:
+                        slice = [x if x else ast.Constant(None, kind="") for x in [slice.lower, slice.upper, slice.step]]
+                        new_attr = ast.Call(ast.Name("slice"), slice, [])
+                        return new_attr
                 if type(new_target.slice) == ast.Index:
                     new_attr = new_target.slice
                 elif type(new_target.slice) == ast.Slice:
