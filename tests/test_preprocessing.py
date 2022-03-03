@@ -82,7 +82,7 @@ def test_context_sensitivity():
     template("nb_273933.py", ["GridSearchCV.fit", "Unknown.fit", "KNeighborsClassifier.fit"])
 
 def test_classdef():
-    template("nb_424904.py", []) #'Unknown | type.fit']) [could not distinguish non-dataflow & flow insensitivity]
+    template("nb_424904.py", ['Unknown.fit'])
 
 def test_funcdef():
     template("nb_292583.py", ["GridSearchCV.fit", "AdaBoostClassifier.fit", "Any | Unknown | type.fit", "Unknown.fit"]) 

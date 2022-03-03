@@ -108,6 +108,9 @@ Specified cases for data flow analysis
 .decl ParamToRetEquivFlow(to:number, from:number, method:Method)
 .decl ParamToRetCondEquivFlow(to:number, from:number, cond_id:number,method:Method)
 .decl ParamContentToRetCondEquivFlow(to:number, from:number, cond_id:number,method:Method)
+
+.decl ParamToRetDataFlow(to:number, from:number, method:Method)
+
 .decl FlowCondition(cond_id:number, keyword:Var, constant:symbol)
 
 // param2param flows
@@ -120,13 +123,18 @@ ParamToRetFlowFilterMethod(0, 0, meth) :-
 ParamToRetEquivFlow(0, 0, "ndarray.reshape").
 ParamToRetEquivFlow(0, 1, "numpy.array").
 ParamToRetEquivFlow(0, 1, "sklearn.preprocessing.scale").
+ParamToRetEquivFlow(0, 2, "patsy.dmatrix").
+
+ParamToRetEquivFlow(0, 1, meth) :-
+    Invoke(_, meth, _),
+    match(".*csr_matrix", meth).
 ParamToRetEquivFlow(0, 0, meth) :-
     Invoke(_, meth, _),
     match(".*[.](astype)", meth).
 
 ParamToRetEquivFlow(0, 0, meth) :-
     Invoke(_, meth, _),
-    match(".*[.](toarray)", meth).
+    match(".*[.](toarray|tocsr|todense)", meth).
 
 ParamToRetEquivFlow(0, 1, meth) :-
     Invoke(_, meth, _),
@@ -152,6 +160,20 @@ ParamContentToRetCondEquivFlow(0, 1, 173, meth) :-
 FlowCondition(173, "axis", "1").
 
 // [TODO] specified flows for datasets
+ParamToRetDataFlow(0, 1, meth),
+ParamToRetDataFlow(1, 1, meth),
+ParamToRetDataFlow(2, 2, meth),
+ParamToRetDataFlow(3, 2, meth) :-
+    Invoke(_, meth, _),
+    match(".*train_test_split", meth).
+
+ParamToRetDataFlow(0, 1, meth) :-
+    Invoke(_, meth, _),
+    match("pandas[.](concat)", meth).
+
+ParamToRetDataFlow(0, 0, meth) :-
+    Invoke(_, meth, _),
+    match(".*[.](drop|dropna|drop_duplicates)", meth).
 
 /* -------------------
 "Taint" inputs (specified locations for reduce/duplicate in pre-processing)
@@ -527,7 +549,8 @@ FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
     VarPointsTo(from, fromCtx, _, _),
     toCtx = fromCtx.
 
-FlowFromEdge(to, toCtx, from, fromCtx, "normal") :-
+FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
+FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
     AssignGlobal(to, from),
     VarPointsTo(to, toCtx, _, _),
     VarPointsTo(from, fromCtx, _, _).
@@ -597,18 +620,36 @@ FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
     IndexContentPointsTo(fromListValue, baseHctx, fromValue, hctx),
     ActualReturn(toIdx, invo, to).
 
-// flows between data
-// now we assume all flows are between data, except for known model variables
-NonDataTransferEdge(to, from) :-
-    ParamToRetFlowFilterMethod(to_idx, from_idx, meth),
-    CallGraphEdge(invo, _, meth, _),
-    ActualParam(from_idx, invo, from),
-    ActualReturn(to_idx, invo, to).
+FlowFromEdge(to, toCtx, from, fromCtx, "data") :-
+    FlowFromEdge(to, toCtx, from, fromCtx, "equiv").
 
 FlowFromEdge(to, toCtx, from, fromCtx, "data") :-
-    !NonDataTransferEdge(to, from),
-    !IsModel(to), !IsModel(from), 
-    FlowFromEdge(to, toCtx, from, fromCtx, "normal").
+    (AssignBinOp(to, from, _, _); AssignBinOp(to, _, _, from);
+    LoadIndex(to, from, _); StoreIndex(to, _, from); LoadField(to, from, _); StoreField(to, _, from); LoadSlice(to, from, _, _, _); StoreSlice(to, _, _, _, from);
+    StoreIndexSSA(to, _, _, from); StoreFieldSSA(to, _, _, from); StoreSliceSSA(to, _, _, _, _, from)),
+    VarPointsTo(to, toCtx, _, _),
+    VarPointsTo(from, fromCtx, _, _),
+    toCtx = fromCtx.
+
+FlowFromEdge(to, toCtx, from, fromCtx, "data") :-
+    FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
+    CallGraphEdge(invo, _, meth, _),
+    ParamToRetDataFlow(toIdx, fromIdx, meth),
+    ActualParam(fromIdx, invo, from),
+    ActualReturn(toIdx, invo, to).
+
+// // flows between data
+// // now we assume all flows are between data, except for known model variables
+// NonDataTransferEdge(to, from) :-
+//     ParamToRetFlowFilterMethod(to_idx, from_idx, meth),
+//     CallGraphEdge(invo, _, meth, _),
+//     ActualParam(from_idx, invo, from),
+//     ActualReturn(to_idx, invo, to).
+
+// FlowFromEdge(to, toCtx, from, fromCtx, "data") :-
+//     !NonDataTransferEdge(to, from),
+//     !IsModel(to), !IsModel(from), 
+//     FlowFromEdge(to, toCtx, from, fromCtx, "normal").
 
 // flow path base case
 FlowFrom(to, toCtx, from, fromCtx, tag) :-
