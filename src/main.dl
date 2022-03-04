@@ -303,6 +303,7 @@ ScoredResult(meth, 2) :-
     match(".*(accuracy_score|balanced_accuracy_score|top_k_accuracy_score|average_precision_score|brier_score_loss|f1_score|f1_score|f1_score|f1_score|f1_score|log_loss|precision_score|recall_score|jaccard_score|roc_auc_score|roc_auc_score|roc_auc_score|roc_auc_score|roc_auc_score|adjusted_mutual_info_score|adjusted_rand_score|completeness_score|fowlkes_mallows_score|homogeneity_score|mutual_info_score|normalized_mutual_info_score|rand_score|v_measure_score|explained_variance_score|max_error|mean_absolute_error|mean_squared_error|mean_squared_error|mean_squared_log_error|median_absolute_error|r2_score|mean_poisson_deviance|mean_gamma_deviance|mean_absolute_percentage_errors)", meth).
 
 // known pre-processing methods not for training a model
+// [Problem!!] Unknown custom methods may also be pre-processing
 FilteredTrainingMethod(meth) :-
     Invoke(_, meth, _),
     (match("(GenericUnivariateSelect|SelectPercentile|SelectKBest|SelectFpr|SelectFdr|SelectFromModel|SelectFwe|SequentialFeatureSelector|RFE|RFECV|VarianceThreshold)[.]fit", meth);
@@ -698,7 +699,6 @@ FlowFromExtended(to, toCtx, from, fromCtx, tag) :-
 Overlap analysis
 ----------------------------- */
 .decl DataOverlap(train:Var, ctx1:Context, test:Var, ctx2:Context)
-.decl ModelOverlap(model1:Var, ctx1:Context, model2:Var, ctx2:Context)
 DataOverlap(train, ctx1, test, ctx2) :- // split with slicing will never be recognized as overlaps
     FlowFromExtended(test, ctx2, src_equiv, ctx_src, "data"), 
     FlowFromExtended(train, ctx1, src_equiv, ctx_src, "equiv").
@@ -722,10 +722,10 @@ DataOverlap(train, ctx1, test, ctx2) :-
     DataOverlap(train, ctx1, from, fromCtx).
 
 // check whether two models are related
-ModelOverlap(model1, ctx1, model2, ctx2) :-
-    IsModel(model1), IsModel(model2),
-    FlowFromExtended(model1, ctx1, model2, ctx2, _).
-// ModelOverlap(model2, ctx2, model1, ctx1) :- ModelOverlap(model1, ctx1, model2, ctx2).
+// FlowFromExtended(model1, ctx1, model2, ctx2) :-
+//     IsModel(model1), IsModel(model2),
+//     FlowFromExtended(model1, ctx1, model2, ctx2, _).
+// FlowFromExtended(model2, ctx2, model1, ctx1) :- FlowFromExtended(model1, ctx1, model2, ctx2).
 
 
 /* -----------------------------
@@ -802,16 +802,18 @@ ValDataWithModel(model, val, invo, meth) :-
 // [Case 3] Scored multiple times for different models
 // [TODO] exactly the same, or overlapping data?
 ValDataWithModel(testModel, val, invo, meth),
-ValDataWithModel(testModel2, val, invo2, meth2) :-
+ValDataWithModel(testModel2, val2, invo2, meth2) :-
     ScoredDataWithModel(testModel, val, invo, meth),
-    ScoredDataWithModel(testModel2, val, invo2, meth2),
+    ScoredDataWithModel(testModel2, val2, invo2, meth2),
+    val = val2,
     invo != invo2,
-    !ModelOverlap(testModel, _, testModel2, _).
+    !FlowFromExtended(testModel, _, testModel2, _, _),
+    !FlowFromExtended(testModel2, _, testModel, _, _).
 // [Case 4] propagation to overlapping data
 ValDataWithModel(model, test, invo, meth) :-
     ValOrTestDataWithModel(model, test, invo, meth),
     ValDataWithModel(testModel, val, invo, meth),
-    (ModelOverlap(model, ctx1, testModel, ctx2); ModelOverlap(testModel, ctx2, model, ctx1)),
+    (FlowFromExtended(model, ctx1, testModel, ctx2, _); FlowFromExtended(testModel, ctx2, model, ctx1, _)),
     DataOverlap(test, ctx1, val, ctx2).
 
 // all remaining data is treated as validation data
@@ -825,12 +827,12 @@ TrainTestPair(trainModel, train, testModel, test) :-
     TestDataWithModel(testModel, test, _, _),
     TrainingDataWithModel(trainModel, train, _, _),
     !DataOverlap(test, ctx1, train, ctx2),
-    ModelOverlap(testModel, ctx1, trainModel, ctx2).
+    FlowFromExtended(testModel, ctx1, trainModel, ctx2, _).
 TrainValPair(trainModel, train, valModel, val) :-
     ValDataWithModel(valModel, val, _, _),
     TrainingDataWithModel(trainModel, train, _, _),
     !DataOverlap(val, ctx1, train, ctx2),
-    ModelOverlap(valModel, ctx1, trainModel, ctx2).
+    FlowFromExtended(valModel, ctx1, trainModel, ctx2, _).
 
 /* -----------------------------
 Leak detection rules
@@ -896,7 +898,7 @@ OverlapLeak(testModel, trainModel, invo, meth) :-
     ValOrTestDataWithModel(testModel, test, invo2, meth2),
     DataOverlap(train, _, test, _),
     train != test,
-    ModelOverlap(testModel, _, trainModel, _).
+    FlowFromExtended(testModel, _, trainModel, _, _).
 
 /* -----------------------------
 No test data detection
@@ -924,6 +926,7 @@ MultiUseTestLeak(test, invo, meth) :-
     TestDataWithModel(testModel2, test2, invo2, meth2),
     ScoredDataWithModel(testModel2, test2, invo2, meth2),
     invo != invo2,
+    testModel != testModel2,
     DataOverlap(test, _, test2, _).
 
 // ---- outputs ----
@@ -939,7 +942,6 @@ MultiUseTestLeak(test, invo, meth) :-
 .output FlowFromExtended
 
 .output DataOverlap
-.output ModelOverlap
 
 .output TrainTestPair
 .output TrainValPair
