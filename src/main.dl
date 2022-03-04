@@ -103,7 +103,7 @@ Specified cases for data flow analysis
 ------------------- */
 //  relations
 .decl ParamToParamFlow(to:number, from:number, method:Method) 
-.decl ParamToRetFlowFilterMethod(to:number, from:number, method:Method)
+// .decl ParamToRetFlowFilterMethod(to:number, from:number, method:Method)
 
 .decl ParamToRetEquivFlow(to:number, from:number, method:Method)
 .decl ParamToRetCondEquivFlow(to:number, from:number, cond_id:number,method:Method)
@@ -115,9 +115,9 @@ Specified cases for data flow analysis
 
 // param2param flows
 ParamToParamFlow(0, 1, "pandas.Series.fillna").
-ParamToRetFlowFilterMethod(0, 0, meth) :-
-    Invoke(_, meth, _),
-    match(".*[.](fit|fit_transform|transform)", meth).
+// ParamToRetFlowFilterMethod(0, 0, meth) :-
+//     Invoke(_, meth, _),
+//     match(".*[.](fit|fit_transform|transform)", meth).
 
 // equivalent flows
 ParamToRetEquivFlow(0, 0, "ndarray.reshape").
