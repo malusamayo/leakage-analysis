@@ -98,6 +98,58 @@ MethodUpdate(0, meth) :-
 MethodUpdate(to, meth) :-
     ParamToParamFlow(to, from, meth).
 
+.decl MethodIndexToKey(index:number, keyword:Var, meth:Method)
+// pandas
+MethodIndexToKey(1, "data", meth) :-
+    Invoke(_, meth, _),
+    match("pandas[.](Series|DataFrame|get_dummies|pivot|pivot_table)", meth).
+MethodIndexToKey(1, "x", meth) :-
+    Invoke(_, meth, _),
+    match("pandas[.](cut|qcut)", meth).
+MethodIndexToKey(1, "values", meth) :-
+    Invoke(_, meth, _),
+    match("pandas[.](facorize|unique)", meth).
+MethodIndexToKey(1, "objs", meth) :-
+    Invoke(_, meth, _),
+    match("pandas[.](concat|isna|isnull|notna|notnull)", meth).
+MethodIndexToKey(1, "arg", meth) :-
+    Invoke(_, meth, _),
+    match("pandas[.](to_numeric|to_datetime|to_timedelta)", meth).
+MethodIndexToKey(1, "frame", "pandas.melt").
+MethodIndexToKey(1, "df", "pandas.wide_to_long").
+MethodIndexToKey(1, "left", meth),
+MethodIndexToKey(2, "right", meth) :-
+    Invoke(_, meth, _),
+    match("pandas[.](merge|merge_ordered|merge_asof)", meth).
+
+// sklearn
+MethodIndexToKey(1, "X", meth) :-
+    Invoke(_, meth, _),
+    match(".*[.](fit|predict|predict_log_proba|predict_proba|score)", meth).
+MethodIndexToKey(2, "y", meth) :-
+    Invoke(_, meth, _),
+    match(".*[.](fit|score)", meth).
+
+// keras
+MethodIndexToKey(1, "x", meth) :-
+    Invoke(_, meth, _),
+    match(".*[.](fit|evaluate|predict|predict_classes|predict_proba|train_on_batch|test_on_batch|predict_on_batch)", meth).
+MethodIndexToKey(1, "generator", meth) :-
+    Invoke(_, meth, _),
+    match(".*[.](fit_generator|evaluate_generator)", meth).
+
+MethodIndexToKey(8, "validation_data", meth) :-
+    Invoke(_, meth, _),
+    match(".*[.](fit)", meth).
+MethodIndexToKey(6, "validation_data", meth) :-
+    Invoke(_, meth, _),
+    match(".*[.](fit_generator)", meth).
+
+ActualParam(fromIdx, invo, from) :-
+    MethodIndexToKey(fromIdx, keyword, meth),
+    ActualKeyParam(keyword, invo, from),
+    Invoke(invo, meth, _).
+
 /* -------------------
 Specified cases for data flow analysis 
 ------------------- */
@@ -120,7 +172,6 @@ ParamToParamFlow(0, 1, "pandas.Series.fillna").
 //     match(".*[.](fit|fit_transform|transform)", meth).
 
 // equivalent flows
-ParamToRetEquivFlow(0, 0, "ndarray.reshape").
 ParamToRetEquivFlow(0, 1, "numpy.array").
 ParamToRetEquivFlow(0, 1, "sklearn.preprocessing.scale").
 ParamToRetEquivFlow(0, 2, "patsy.dmatrix").
@@ -130,7 +181,7 @@ ParamToRetEquivFlow(0, 1, meth) :-
     match(".*csr_matrix", meth).
 ParamToRetEquivFlow(0, 0, meth) :-
     Invoke(_, meth, _),
-    match(".*[.](astype)", meth).
+    match(".*[.](astype|reshape)", meth).
 
 ParamToRetEquivFlow(0, 0, meth) :-
     Invoke(_, meth, _),
@@ -140,13 +191,18 @@ ParamToRetEquivFlow(0, 1, meth) :-
     Invoke(_, meth, _),
     match(".*[.](transform|fit_transform)", meth).
 
+// pandas specs
 ParamToRetEquivFlow(0, 1, meth) :-
     Invoke(_, meth, _),
     match("pandas[.](Series|DataFrame|get_dummies|cut|qcut|factorize|isna|isnull|notna|notnull|to_numeric|to_datetime|to_timedelta)", meth).
 
 ParamToRetEquivFlow(0, 0, meth) :-
     Invoke(_, meth, _),
-    match(".*(Unknown|Series|DataFrame|FrameOrSeries|GroupBy)[.](copy|fillna|replace|map|apply|applymap|transform|convert_dtypes|round|abs|between|clip|cummax|cummin|cumprod|cumsum|diff|factorize|rank|rename|rename_axis|reset_index|set_axis|where|mask|add_prefix|add_suffix|backfill|bfill|ffill|pad|interpolate|sort_values|sort_index|view|shift|tshift|slice_shift|tz_convert|tz_localize|select_dtypes|insert|pop|get|transpose|assign)", meth).
+    match(".*(Unknown|Series|DataFrame|FrameOrSeries|GroupBy)[.](copy|fillna|replace|map|apply|applymap|convert_dtypes|round|abs|between|clip|cummax|cummin|cumprod|cumsum|diff|factorize|rank|rename|rename_axis|reset_index|set_axis|where|mask|add_prefix|add_suffix|backfill|bfill|ffill|pad|interpolate|sort_values|sort_index|view|shift|tshift|slice_shift|tz_convert|tz_localize|select_dtypes|insert|pop|get|transpose|assign)", meth).
+
+ParamToRetEquivFlow(0, 0, meth) :-
+    Invoke(_, meth, _),
+    match(".*(Series|DataFrame|FrameOrSeries|GroupBy)[.](transform)", meth).
 
 ParamToRetEquivFlow(0, 0, meth) :-
     Invoke(_, meth, _),
@@ -301,11 +357,8 @@ ParamToRetTaintSourceMethod(0, 1, meth, "dup")  :-
 Locations for train/val/test data
 ------------------- */
 .decl TrainingData(method:Method, model_idx:number, data_index:number)
-.decl TrainingDataByKey(method:Method, model_idx:number, datakw:Var)
 .decl TestData(method:Method, model_idx:number, data_index:number)
-.decl TestDataByKey(method:Method, model_idx:number, datakw:Var)
 .decl ValData(method:Method, model_idx:number, data_index:number)
-.decl ValDataByKey(method:Method, model_idx:number, datakw:Var)
 .decl ScoredData(method:Method, model_idx:number, data_index:number)
 .decl ScoredResult(method:Method, result_index:number)
 .decl FilteredTrainingMethod(method:Method)
@@ -313,26 +366,20 @@ Locations for train/val/test data
 TrainingData(meth, 0, 1) :-
     Invoke(_, meth, _),
     match(".*[.](fit|fit_generator)", meth).
-TrainingDataByKey(meth, 0, "generator") :-
-    Invoke(_, meth, _),
-    match(".*[.](fit_generator)", meth).
-
 
 TestData(meth, 0, 1) :-
     Invoke(_, meth, _),
     match(".*[.](predict|score|evaluate|predict_proba)", meth).
-TestDataByKey(meth, 0, "x") :-
-    Invoke(_, meth, _),
-    match(".*[.](predict_proba)", meth).
-
 
 ValData(meth, 0, 1) :-
     Invoke(_, meth, _),
     match(".*(GridSearchCV|HalvingGridSearchCV|ParameterGrid|ParameterSampler|RandomizedSearchCV|HalvingRandomSearchCV)[.]fit", meth).
-ValDataByKey(meth, 0, "validation_data") :-
+ValData(meth, 0, 8) :-
     Invoke(_, meth, _),
-    match(".*[.](fit|fit_generator)", meth).
-
+    match(".*(Sequential|Model)[.](fit)", meth).
+ValData(meth, 0, 6) :-
+    Invoke(_, meth, _),
+    match(".*(Sequential|Model)[.](fit_generator)", meth).
 
 ScoredData(meth, 0, 1) :-
     Invoke(_, meth, _),
@@ -788,20 +835,16 @@ IsModel(model) :-
     TrainingDataWithModel(model, _, _, _); ValOrTestDataWithModel(model, _, _, _).
 
 TrainingDataWithModel(model, train, invo, meth) :-
-    (TrainingData(meth, model_idx, idx),
-    ActualParam(idx, invo, train);
-    TrainingDataByKey(meth, model_idx, keyword),
-    ActualKeyParam(keyword, invo, train)),
+    TrainingData(meth, model_idx, idx),
+    ActualParam(idx, invo, train),
     CallGraphEdge(invo, _, meth, _),
     !FilteredTrainingMethod(meth),
     ActualParam(model_idx, invo, model).
 
 // could be test/validation data; to be determined
 ValOrTestDataWithModel(model, test, invo, meth) :-
-    (TestData(meth, model_idx, idx),
-    ActualParam(idx, invo, test);
-    TestDataByKey(meth, model_idx, keyword),
-    ActualKeyParam(keyword, invo, test)),
+    TestData(meth, model_idx, idx),
+    ActualParam(idx, invo, test),
     CallGraphEdge(invo, _, meth, _),
     ActualParam(model_idx, invo, model).
 
@@ -826,16 +869,15 @@ ScoredDataWithModel(model, test, invo, meth) :-
 // validation data rules
 // [Case 1] Specified method arguments that are used for validation 
 ValDataWithModel(model, val, invo, meth) :-
-    (ValData(meth, model_idx, idx),
-    ActualParam(idx, invo, val);
-    ValDataByKey(meth, model_idx, keyword),
-    ActualKeyParam(keyword, invo, val)),
+    ValData(meth, model_idx, idx),
+    ActualParam(idx, invo, val),
     CallGraphEdge(invo, _, meth, _),
     ActualParam(model_idx, invo, model).
 ValDataWithModel(model, val, invo, meth) :-
-    ValDataByKey(meth, model_idx, keyword),
-    keyword = "validation_data",
+    ValData(meth, model_idx, idx),
+    MethodIndexToKey(idx, keyword, meth),
     ActualKeyParam(keyword, invo, tup),
+    keyword = "validation_data",
     StoreIndex(tup, "0", val),
     CallGraphEdge(invo, _, meth, _),
     ActualParam(model_idx, invo, model).
