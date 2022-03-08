@@ -360,11 +360,6 @@ ConstantValue(var, constant) :-
     AssignIntConstant(var, constant);
     AssignFloatConstant(var, constant).
 
-ConstantValue(to, constant) :-
-    VarPointsTo(from, _, value, hCtx),
-    VarPointsTo(to, _, value, hCtx),
-    ConstantValue(from, constant).
-
 // ---- Common Expression Detection ----
 VarEquals(var1, var2) :-
     ConstantValue(var1, constant),
@@ -372,6 +367,16 @@ VarEquals(var1, var2) :-
 
 VarEquals(var, var) :-
     VarPointsTo(var, _, _, _).
+
+VarEquals(var1, var2) :-
+    VarEquals(var2, var1).
+
+VarEquals(var1, var3) :-
+    VarEquals(var1, var2),
+    VarEquals(var2, var3).
+
+VarEquals(var1, var2) :-
+    AssignVar(var1, var2); AssignGlobal(var1, var2); InterProcAssign(var1, _, var2, _).
 
 VarEquals(var1, var2) :-
     (LoadField(var1, base1, fld), LoadField(var2, base2, fld);
@@ -844,7 +849,7 @@ ValDataWithModel(testModel, val, invo, meth),
 ValDataWithModel(testModel2, val2, invo2, meth2) :-
     ScoredDataWithModel(testModel, val, invo, meth),
     ScoredDataWithModel(testModel2, val2, invo2, meth2),
-    val = val2,
+    VarEquals(val, val2),
     invo != invo2,
     !FlowFromExtended(testModel, _, testModel2, _, _),
     !FlowFromExtended(testModel2, _, testModel, _, _).
@@ -936,7 +941,7 @@ OverlapLeak(testModel, trainModel, invo, meth) :-
     TrainingDataWithModel(trainModel, train, invo, meth),
     ValOrTestDataWithModel(testModel, test, invo2, meth2),
     DataOverlap(train, _, test, _),
-    train != test,
+    !VarEquals(train, test),
     FlowFromExtended(testModel, _, trainModel, _, _).
 
 /* -----------------------------
@@ -960,15 +965,16 @@ Multi-used test data detection
 ----------------------------- */
 Telemetry_MultiUseTestLeak(testModel, test, invo, meth, testModel2, test2, invo2, meth2),
 MultiUseTestLeak(test, invo, meth) :-
-    TestDataWithModel(testModel, test, invo, meth),
+    // TestDataWithModel(testModel, test, invo, meth),
     ScoredDataWithModel(testModel, test, invo, meth),
-    TestDataWithModel(testModel2, test2, invo2, meth2),
+    // TestDataWithModel(testModel2, test2, invo2, meth2),
     ScoredDataWithModel(testModel2, test2, invo2, meth2),
     invo != invo2,
     testModel != testModel2,
     DataOverlap(test, _, test2, _).
 
 // ---- outputs ----
+.output VarEquals
 .output CallGraphEdge
 
 .output VarPointsTo
