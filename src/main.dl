@@ -155,7 +155,6 @@ Specified cases for data flow analysis
 ------------------- */
 //  relations
 .decl ParamToParamFlow(to:number, from:number, method:Method) 
-// .decl ParamToRetFlowFilterMethod(to:number, from:number, method:Method)
 
 .decl ParamToRetEquivFlow(to:number, from:number, method:Method)
 .decl ParamToRetCondEquivFlow(to:number, from:number, cond_id:number,method:Method)
@@ -167,13 +166,10 @@ Specified cases for data flow analysis
 
 // param2param flows
 ParamToParamFlow(0, 1, "pandas.Series.fillna").
-// ParamToRetFlowFilterMethod(0, 0, meth) :-
-//     Invoke(_, meth, _),
-//     match(".*[.](fit|fit_transform|transform)", meth).
 
-// equivalent flows
+
+// specs for arrays and matrices
 ParamToRetEquivFlow(0, 1, "numpy.array").
-ParamToRetEquivFlow(0, 1, "sklearn.preprocessing.scale").
 ParamToRetEquivFlow(0, 2, "patsy.dmatrix").
 
 ParamToRetEquivFlow(0, 1, meth) :-
@@ -187,11 +183,24 @@ ParamToRetEquivFlow(0, 0, meth) :-
     Invoke(_, meth, _),
     match(".*[.](toarray|tocsr|todense|to_numpy|to_period|to_timestamp|to_list|to_xarray)", meth).
 
+
+// ** sklearn specs begin **
 ParamToRetEquivFlow(0, 1, meth) :-
     Invoke(_, meth, _),
     match(".*[.](transform|fit_transform)", meth).
 
-// pandas specs
+ParamToRetEquivFlow(0, 1, "sklearn.preprocessing.scale").
+ParamToRetDataFlow(0, 1, meth),
+ParamToRetDataFlow(1, 1, meth),
+ParamToRetDataFlow(2, 2, meth),
+ParamToRetDataFlow(3, 2, meth) :-
+    Invoke(_, meth, _),
+    match(".*train_test_split", meth).
+// ** sklearn specs end **
+
+
+// ** pandas specs begin **
+// equivalent flows
 ParamToRetEquivFlow(0, 1, meth) :-
     Invoke(_, meth, _),
     match("pandas[.](Series|DataFrame|get_dummies|cut|qcut|factorize|isna|isnull|notna|notnull|to_numeric|to_datetime|to_timedelta)", meth).
@@ -226,14 +235,7 @@ ParamContentToRetCondEquivFlow(0, 1, 173, meth) :-
 
 FlowCondition(173, "axis", "1").
 
-// [TODO] specified flows for datasets
-ParamToRetDataFlow(0, 1, meth),
-ParamToRetDataFlow(1, 1, meth),
-ParamToRetDataFlow(2, 2, meth),
-ParamToRetDataFlow(3, 2, meth) :-
-    Invoke(_, meth, _),
-    match(".*train_test_split", meth).
-
+// dataset flow
 ParamToRetDataFlow(0, 1, meth),
 ParamToRetDataFlow(0, 2, meth) :-
     Invoke(_, meth, _),
@@ -268,6 +270,22 @@ ParamToRetDataFlow(0, 0, meth) :-
 ParamToRetDataFlow(0, 0, meth) :-
     Invoke(_, meth, _),
     match(".*Series[.]str[.](extractall)", meth).
+// ** pandas specs end **
+
+// ** keras specs begin **
+ParamToRetEquivFlow(0, 1, meth) :-
+    Invoke(_, meth, _),
+    match(".*(Tokenizer)[.](sequences_to_texts|texts_to_matrix|texts_to_sequences)", meth).
+ParamToRetEquivFlow(0, 1, meth) :-
+    Invoke(_, meth, _),
+    match(".*(hashing_trick|one_hot|text_to_word_sequence|pad_sequences)", meth).
+ParamToRetEquivFlow(0, 1, meth) :-
+    Invoke(_, meth, _),
+    match(".*(apply_affine_transform|apply_brightness_shift|apply_channel_shift|array_to_img|img_to_array|random_brightness|random_channel_shift|random_rotation|random_shear|random_shift|random_zoom|smart_resize)", meth).
+ParamToRetDataFlow(0, 1, meth) :-
+    Invoke(_, meth, _),
+    match(".*ImageDataGenerator[.](flow|flow_from_dataframe)", meth).
+// ** keras specs end **
 
 
 /* -------------------
@@ -346,12 +364,21 @@ ParamToRetCondTaintSourceMethod(0, 1, 4027, "DataFrameMapper.fit_transform", "ro
 ParamToRetCondTaintSourceMethod(0, 1, 4027, "Pipeline.fit_transform",  "rowset").
 TaintCondition(4027, 0, "pipeline").
 
-ParamToRetTaintSourceMethod(0, 1, "ImageDataGenerator.flow", "dup"). 
-
 // oversampling leak
 ParamToRetTaintSourceMethod(0, 1, meth, "dup")  :-
     Invoke(_, meth, _),
     match("(RandomOverSampler|SMOTE|SMOTENC|SMOTEN|ADASYN|BorderlineSMOTE|KMeansSMOTE|SVMSMOTE|SMOTEENN|SMOTETomek)[.]fit_resample", meth).
+
+// keras preprocessing leaks
+ParamToRetTaintSourceMethod(0, 1, meth, "dup") :-
+    Invoke(_, meth, _),
+    match(".*ImageDataGenerator[.](flow|flow_from_dataframe)", meth).
+
+ParamToParamTaintSourceMethod(0, 1, meth, "rowset"),
+ParamToRetTaintSourceMethod(0, 1, meth, "rowset") :-
+    Invoke(_, meth, _),
+    match(".*Tokenizer[.]fit_on_(sequences|texts)", meth).
+
 
 /* -------------------
 Locations for train/val/test data
