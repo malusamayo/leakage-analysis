@@ -150,18 +150,18 @@ ParamToRetEquivFlow(0, 0, meth) :-
 
 ParamToRetEquivFlow(0, 0, meth) :-
     Invoke(_, meth, _),
-    match("pandas[.]Series[.]str[.](capitalize|casefold|lower|upper|title|swapcase|cat|center|count|decode|encode|extract|join|len|ljust|lstrip|normalize|pad|partition|removeprefix|removesuffix|repeat|replace|rjust|rpartition|rstrip|slice|slice_replace|split|rsplit|strip|translate|wrap|zfill|get_dummies)", meth).
+    match(".*Series[.]str[.](capitalize|casefold|lower|upper|title|swapcase|cat|center|count|decode|encode|extract|join|len|ljust|lstrip|normalize|pad|partition|removeprefix|removesuffix|repeat|replace|rjust|rpartition|rstrip|slice|slice_replace|split|rsplit|strip|translate|wrap|zfill|get_dummies)", meth).
 ParamToRetEquivFlow(0, 1, "pandas.Series.str.cat").
 ParamToRetEquivFlow(0, 0, meth) :-
     Invoke(_, meth, _),
-    match("pandas[.]Series[.]cat[.](rename_categories|reorder_categories|add_categories|remove_categories|remove_unused_categories|set_categories|as_ordered|as_unordered)", meth).
+    match(".*Series[.]cat[.](rename_categories|reorder_categories|add_categories|remove_categories|remove_unused_categories|set_categories|as_ordered|as_unordered)", meth).
 ParamToRetEquivFlow(0, 0, meth) :-
     Invoke(_, meth, _),
-    match("pandas[.]Series[.]sparse[.](from_coo|to_coo)", meth).
+    match(".*Series[.]sparse[.](from_coo|to_coo)", meth).
 
 ParamToRetCondEquivFlow(0, 0, 173, meth) :-
     Invoke(_, meth, _),
-    match("pandas[.](Series|DataFrame)[.](drop)", meth).
+    match(".*(Series|DataFrame)[.](drop)", meth).
 
 // list member equiv
 ParamContentToRetCondEquivFlow(0, 1, 173, meth) :-
@@ -211,7 +211,7 @@ ParamToRetDataFlow(0, 0, meth) :-
 
 ParamToRetDataFlow(0, 0, meth) :-
     Invoke(_, meth, _),
-    match("pandas[.]Series[.]str[.](extractall)", meth).
+    match(".*Series[.]str[.](extractall)", meth).
 
 
 /* -------------------
