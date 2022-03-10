@@ -75,7 +75,7 @@ def test_equiv_edge():
     template("nb_282393.py", ["Unbound | Sequential.fit_generator", "Sequential.fit_generator"])
 
 def test_loop():
-    template("nb_175471.py", ["MultinomialNB.fit"]) # , "Unknown.fit"]) [could not handle indexing]
+    template("nb_175471.py", ["MultinomialNB.fit", "Unbound.fit"]) 
     template("nb_248151.py", ["Unbound.fit"]) 
 
 def test_context_sensitivity():
