@@ -39,6 +39,7 @@ class FactManager(object):
             "ActualReturn": [],
             "FormalReturn": [],
             # "MethodUpdate": [],
+            "VarType": [],
             "VarInMethod": [],
             "Alloc": [],
             "LocalMethod": [],
@@ -125,6 +126,9 @@ class FactGenerator(ast.NodeVisitor):
                             'list':['module', 'list'],
                             'dict':['module', 'dict'],
                             'str':['module', 'str']})
+        for varname, v in self.type_map.items():
+            if v[0] == "var":
+                self.FManager.add_fact("VarType", (varname, v[1]))
         
 
     def import_map_get(self, key):
