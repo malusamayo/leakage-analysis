@@ -46,6 +46,7 @@
 .decl LocalMethod(meth:Method)
 .decl LocalClass(cls:Type)
 .decl InvokeInLoop(invo:Invocation)
+.decl NextInvoke(invo1:Invocation, invo2:Invocation)
 
 .input AssignVar
 .input AssignGlobal
@@ -77,6 +78,7 @@
 .input LocalMethod
 .input LocalClass
 .input InvokeInLoop
+.input NextInvoke
 
 
 /* -------------------
@@ -605,6 +607,42 @@ CallGraphEdge(invo, callerCtx, toMeth, calleeCtx) :-
     calleeCtx = [invo2, invo].
 
 Reachable("", ["", ""]). // entry point
+
+.decl InvokeEdge(to_invo:Invocation, to_ctx:Context, from_invo:Invocation, from_ctx:Context)
+.decl InvokePath(to_invo:Invocation, to_ctx:Context, from_invo:Invocation, from_ctx:Context)
+InvokeEdge(to_invo, ctx, from_invo, ctx) :-
+    NextInvoke(from_invo, to_invo),
+    CallGraphEdge(from_invo, ctx, _, _),
+    CallGraphEdge(to_invo, ctx, _, _).
+
+NextInvoke(from_invo, "ctx_end"),
+InvokeEdge("ctx_end", ctx, from_invo, ctx) :-
+    NextInvoke(from_invo, to_invo),
+    CallGraphEdge(from_invo, ctx, _, _),
+    CallGraphEdge(to_invo, ctx2, _, _),
+    ctx != ctx2.
+
+InvokeEdge(to_invo, calleeCtx, from_invo, callerCtx) :-
+    CallGraphEdge(from_invo, callerCtx, toMeth, calleeCtx),
+    Invoke(to_invo, _, toMeth),
+    CallGraphEdge(to_invo, calleeCtx, _, _),
+    NextInvoke(invo0, to_invo),
+    Invoke(invo0, _, inMeth),
+    inMeth != toMeth.
+
+InvokeEdge(to_invo, callerCtx, from_invo, calleeCtx) :-
+    InvokeEdge(to_invo, callerCtx, mid_invo, callerCtx),
+    CallGraphEdge(mid_invo, callerCtx, toMeth, calleeCtx),
+    Invoke(from_invo, _, toMeth),
+    NextInvoke(from_invo, "ctx_end").
+
+InvokePath(to_invo, to_ctx, from_invo, from_ctx) :-
+    InvokeEdge(to_invo, to_ctx, from_invo, from_ctx).
+
+InvokePath(to_invo, to_ctx, from_invo, from_ctx) :-
+    InvokeEdge(to_invo, to_ctx, mid_invo, mid_ctx),
+    InvokePath(mid_invo, mid_ctx, from_invo, from_ctx).
+
 
 /* -------------------
     Pointer analysis

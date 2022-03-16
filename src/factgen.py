@@ -44,7 +44,8 @@ class FactManager(object):
             "Alloc": [],
             "LocalMethod": [],
             "LocalClass": [],
-            "InvokeInLoop": []
+            "InvokeInLoop": [],
+            "NextInvoke": []
         }
 
 
@@ -56,6 +57,7 @@ class FactManager(object):
     def get_new_invo(self):
         old_invo = self.invo_num
         self.invo_num += 1
+        self.add_fact("NextInvoke", ("$invo" + str(old_invo), "$invo" + str(self.invo_num)))
         return "$invo" + str(old_invo)
 
     def get_new_var(self):
