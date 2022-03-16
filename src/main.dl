@@ -774,7 +774,13 @@ VarPointsTo(new_base, ctx, baseValue, hctx) :-
     (StoreIndexSSA(new_base, base, _, _); StoreFieldSSA(new_base, base, _, _); StoreSliceSSA(new_base, base, _, _, _, _)),
     VarPointsTo(base, ctx, baseValue, hctx).
 
+VarPointsTo(to, ctx, value, hctx) :- 
+    MethodSSA(to_idx, from_idx, meth),
     CallGraphEdge(invo, ctx, meth, _),
+    ActualParam(from_idx, invo, from),
+    ActualReturn(to_idx, invo, to),
+    VarPointsTo(from, ctx, value, hctx).
+
 // inter-procedural cases
 InterProcAssign(to, calleeCtx, from, callerCtx) :-
     CallGraphEdge(invo, callerCtx, meth, calleeCtx),
@@ -1117,18 +1123,41 @@ TestDataWithModel(model, test, invo, meth) :-
     ValOrTestDataWithModel(model, test, invo, meth),
     !ValDataWithModel(model, test, invo, meth).
 
+// Test model should be paired with nearest training model
+.decl ModelPair(testModel:Var, ctx1:Context, trainModel:Var, ctx2:Context)
+.decl ModelPairCandidate(testModel:Var, ctx1:Context, trainModel:Var, ctx2:Context)
+ModelPairCandidate(testModel, ctx1, trainModel, ctx2) :-
+    ValOrTestDataWithModel(testModel, test, invo1, _),
+    TrainingDataWithModel(trainModel, train, invo2, _),
+    FlowFromExtended(testModel, ctx1, trainModel, ctx2, _),
+    InvokePath(invo1, ctx1, invo2, ctx2).
+
+// ModelPair(testModel, ctx1, trainModel, ctx2) :-
+//     ModelPairCandidate(testModel, ctx1, trainModel, ctx2).
+
+ModelPair(testModel, ctx1, trainModel, ctx2) :-
+    ModelPairCandidate(testModel, ctx1, trainModel, ctx2),
+    TrainingDataWithModel(trainModel, _, invo2, _),
+    c2 = count : { ModelPairCandidate(testModel, ctx1, trainModel2, ctx3), TrainingDataWithModel(trainModel2, _, invo3, _), InvokePath(invo3, ctx3, invo2, ctx2), trainModel2 != trainModel},
+    c2 = 0.
+
+.output InvokeEdge
+.output InvokePath
+.output ModelPairCandidate
+.output ModelPair
+
 // Pairing train/test, train/val data
 // We assume there should be no data overlapping
 TrainTestPair(trainModel, train, testModel, test) :-
     TestDataWithModel(testModel, test, _, _),
     TrainingDataWithModel(trainModel, train, _, _),
     !DataOverlap(test, ctx1, train, ctx2),
-    FlowFromExtended(testModel, ctx1, trainModel, ctx2, _).
+    ModelPair(testModel, ctx1, trainModel, ctx2).
 TrainValPair(trainModel, train, valModel, val) :-
     ValDataWithModel(valModel, val, _, _),
     TrainingDataWithModel(trainModel, train, _, _),
     !DataOverlap(val, ctx1, train, ctx2),
-    FlowFromExtended(valModel, ctx1, trainModel, ctx2, _).
+    ModelPair(valModel, ctx1, trainModel, ctx2).
 
 /* -----------------------------
 Leak detection rules
@@ -1188,13 +1217,15 @@ Overlap leak detection
 DuplicateEdge(to, toCtx, from, fromCtx) :-
     TaintStartsTarget(to, toCtx, from, fromCtx, "dup").
 
+// [TODO] only problematic when all test data overlaps
 Telemetry_OverlapLeak(trainModel, train, invo, meth, testModel, test, invo2, meth2),
 OverlapLeak(testModel, trainModel, invo, meth) :-
     TrainingDataWithModel(trainModel, train, invo, meth),
     ValOrTestDataWithModel(testModel, test, invo2, meth2),
-    DataOverlap(train, _, test, _),
+    DataOverlap(train, ctx1, test, ctx2),
     !VarEquals(train, test),
-    FlowFromExtended(testModel, _, trainModel, _, _).
+    ModelPair(testModel, ctx1, trainModel, ctx2).
+
 
 /* -----------------------------
 No test data detection
