@@ -544,6 +544,16 @@ FilteredTrainingMethod(meth) :-
     match("(Imputer|SimpleImputer|IterativeImputer|KNNImputer)[.]fit", meth);
     match("(FunctionTransformer|KBinsDiscretizer|KernelCenterer|LabelBinarizer|LabelEncoder|MultiLabelBinarizer|MaxAbsScaler|MinMaxScaler|Normalizer|OneHotEncoder|OrdinalEncoder|PolynomialFeatures|PowerTransformer|QuantileTransformer|RobustScaler|SplineTransformer|StandardScaler)[.]fit", meth)).
 
+// ---- Type Info ----
+.decl IsDataFrame(var:Var)
+.decl IsDataFrameEquivIndexing(var:Var)
+
+IsDataFrame(var) :-
+    VarType(var, varType),
+    match(".*(DataFrame|FrameOrSeries|_LocIndexer)", varType).
+IsDataFrameEquivIndexing(idx) :-
+    VarType(idx, "str"); VarType(idx, "list[str]"); VarType(idx, "list").
+
 // ---- Constant Propagation ----
 .decl ConstantValue(var:Var, constant:symbol)
 .decl VarEquals(var1:Var, var2:Var)
@@ -649,7 +659,20 @@ FieldPointsTo(baseValue, baseHctx, fld, value, hctx) :-
 // the semantics depends on specific implementations, e.g., indexing DataFrame may return a copy or a view of the original object
 VarPointsTo(to, ctx, value, hctx) :- 
     LoadIndex(to, base, _),
-    VarPointsTo(base, ctx, value, hctx). 
+    VarPointsTo(base, ctx, value, hctx).
+//     !IsDataFrame(base).
+// VarPointsTo(to, ctx, value, hctx) :- 
+//     LoadIndex(to, base, idx),
+//     VarPointsTo(base, ctx, value, hctx),
+//     IsDataFrame(base),
+//     IsDataFrameEquivIndexing(idx).
+// Alloc(to, newValue, inMeth) :- 
+//     LoadIndex(to, base, idx),
+//     VarPointsTo(base, ctx, value, hctx),
+//     IsDataFrame(base),
+//     !IsDataFrameEquivIndexing(idx),
+//     Reachable(inMeth, ctx),
+//     newValue = ValueIdMacro(value, idx).
 VarPointsTo(to, ctx, value, hctx) :- 
     LoadIndex(to, base, _),
     VarPointsTo(base, ctx, baseValue, baseHctx),
@@ -829,7 +852,7 @@ FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
 FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
     FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
     LoadIndex(to, from, idx),
-    (VarType(idx, "str"); VarType(idx, "list[str]"); VarType(idx, "list")). 
+    IsDataFrameEquivIndexing(idx).
 
 // marked equivalent flows
 FlowFromEdge(to, toCtx, from, fromCtx, "equiv") :-
