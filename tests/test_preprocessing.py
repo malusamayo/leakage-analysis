@@ -49,7 +49,7 @@ def test_dataFrameMapper():
     template("nb_132929.py", ["GaussianNB.fit", "Unbound.fit"])
 
 def test_scaler():
-    template("nb_194503.py", ["Unknown.fit"])
+    template("nb_194503.py", ["Model.fit"])
     template("nb_362989.py", ["GaussianNB.fit", "Unbound.fit"])
     template("nb_473437.py", [])
 
@@ -72,7 +72,7 @@ def test_applymap():
     template("nb_344814.py", ["LogisticRegression.fit"])
 
 def test_equiv_edge():
-    template("nb_282393.py", ["Unbound | Sequential.fit_generator", "Sequential.fit_generator"])
+    template("nb_282393.py", ["Sequential.fit_generator"])
 
 def test_loop():
     template("nb_175471.py", ["MultinomialNB.fit", "Unbound.fit"]) 
@@ -85,7 +85,7 @@ def test_classdef():
     template("nb_424904.py", ['Unknown.fit'])
 
 def test_funcdef():
-    template("nb_292583.py", ["GridSearchCV.fit", "AdaBoostClassifier.fit", "Any | Unknown | type.fit", "Unknown.fit"]) 
+    template("nb_292583.py", ["AdaBoostClassifier.fit", "Any | Unknown | type.fit", "Unknown.fit"])  # "GridSearchCV.fit" [limitations on flow-sensitivity of alias propagation]
     template("nb_481597.py", ["RandomForestRegressor.fit"]) 
 
 def test_branch():
@@ -93,4 +93,4 @@ def test_branch():
 
 def test_cut():
     template("nb_1090319.py", ["Unknown.fit", "LogisticRegression.fit"]) 
-    template("nb_1255091.py", ["DecisionTreeClassifier.fit", "KNeighborsClassifier.fit", 'RandomForestClassifier.fit'])
+    template("nb_1255091.py", ["DecisionTreeClassifier.fit", "KNeighborsClassifier.fit", 'RandomForestClassifier.fit', 'RandomForestRegressor | ExtraTreesRegressor | BaseForest.fit'])
