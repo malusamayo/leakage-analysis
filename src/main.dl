@@ -100,6 +100,11 @@ MethodUpdate(0, meth) :-
 MethodUpdate(to, meth) :-
     ParamToParamFlow(to, from, meth).
 
+.decl MethodSSA(ret_index:number, index:number, meth:Method)
+MethodSSA(0, 0, meth) :-
+    Invoke(_, meth, _),
+    match(".*[.](fit|fit_generator)", meth).
+
 .decl MethodIndexToKey(index:number, keyword:Var, meth:Method)
 // pandas
 MethodIndexToKey(1, "data", meth) :-
@@ -512,6 +517,7 @@ Locations for train/val/test data
 .decl ScoredResult(method:Method, result_index:number)
 .decl FilteredTrainingMethod(method:Method)
 
+// return index
 TrainingData(meth, 0, 1) :-
     Invoke(_, meth, _),
     match(".*[.](fit|fit_generator)", meth).
@@ -768,6 +774,7 @@ VarPointsTo(new_base, ctx, baseValue, hctx) :-
     (StoreIndexSSA(new_base, base, _, _); StoreFieldSSA(new_base, base, _, _); StoreSliceSSA(new_base, base, _, _, _, _)),
     VarPointsTo(base, ctx, baseValue, hctx).
 
+    CallGraphEdge(invo, ctx, meth, _),
 // inter-procedural cases
 InterProcAssign(to, calleeCtx, from, callerCtx) :-
     CallGraphEdge(invo, callerCtx, meth, calleeCtx),
@@ -869,6 +876,22 @@ FlowFromEdge(to, toCtx, from, fromCtx,  "data") :-
     MethodUpdate(fromIdx, meth),
     ActualParam(fromIdx, invo, from),
     Alias(to, toCtx, from, fromCtx).
+FlowFromEdge(to, toCtx, from, fromCtx, "normal"),
+FlowFromEdge(to, toCtx, from, fromCtx,  "data") :-
+    CallGraphEdge(invo, _, meth, _),
+    MethodUpdate(idx, meth),
+    MethodSSA(fromIdx, idx, meth),
+    ActualReturn(fromIdx, invo, from),
+    Alias(to, toCtx, from, fromCtx).
+// FlowFromEdge(from, fromCtx, to, toCtx,  "normal"),
+// FlowFromEdge(from, fromCtx, to, toCtx,  "data") :-
+//     MethodSSA(to_idx, from_idx, meth),
+//     CallGraphEdge(invo, _, meth, _),
+//     ActualParam(from_idx, invo, from),
+//     ActualReturn(to_idx, invo, to),
+//     VarPointsTo(to, toCtx, value, hctx),
+//     VarPointsTo(from, fromCtx, value, hctx),
+//     fromCtx = toCtx.
 // [TODO] updates will also propagate to objects that could acess it?
 
 // self-loop
@@ -1026,7 +1049,7 @@ TrainingDataWithModel(model, train, invo, meth) :-
     ActualParam(idx, invo, train),
     CallGraphEdge(invo, _, meth, _),
     !FilteredTrainingMethod(meth),
-    ActualParam(model_idx, invo, model).
+    ActualReturn(model_idx, invo, model).
 
 // could be test/validation data; to be determined
 ValOrTestDataWithModel(model, test, invo, meth) :-

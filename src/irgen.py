@@ -1,5 +1,6 @@
 import os, sys
 import ast
+import copy
 import astunparse
 import json
 from collections import defaultdict
@@ -241,16 +242,28 @@ class CodeTransformer(ast.NodeTransformer):
         return nodes1 + nodes2 + [ast.Assert(new_test, new_msg)]
 
     def visit_Expr(self, node):
+        node_saved = copy.deepcopy(node)
         rets = self.generic_visit(node)
         if len(rets.value) == 2 and type(rets.value[0]) == list:
             if type(rets.value[1]) == ast.Call:
-                call = rets.value[1]
-                if type(call.func) == ast.Attribute and call.func.attr == "fit":
-                    assert type(call.func.value) == ast.Name
-                    nodes, new_base = self.visit_Name(call.func.value, assigned=True)
-                    return rets.value[0] + nodes + [ast.Assign([new_base], call)]
+                nodes = self.handle_call_updates(rets.value[1], node_saved.value)
+                if nodes:
+                    return rets.value[0] + nodes
             return rets.value[0] + [ast.Expr(rets.value[1])]
         return rets
+
+    def handle_call_updates(self, call, call_saved, assigned_var=None):
+        if type(call.func) == ast.Attribute and call.func.attr in ["fit", "fit_generator"]:
+            if type(call_saved.func) == ast.Attribute and type(call_saved.func.value) == ast.Name:
+                src_name = call_saved.func.value
+            else:
+                src_name = call.func.value
+            nodes, new_base = self.visit_Name(src_name, assigned=True)
+            if assigned_var:
+                return nodes + [ast.Assign([new_base], assigned_var)]
+            else:
+                return nodes + [ast.Assign([new_base], call)]
+        return []
 
     def handle_assign_value(self, target, value):
         assert(type(target) == ast.Name)
@@ -261,6 +274,8 @@ class CodeTransformer(ast.NodeTransformer):
             nodes, new_node = self.visit(value)
             nodes1, target = self.visit_Name(target, assigned = True)
             nodes = nodes + nodes1 + [ast.Assign([target], new_node)]
+            if type(value) == ast.Call:
+                nodes += self.handle_call_updates(new_node, value, target)
         return nodes
 
     def handle_single_assign(self, target, value):
@@ -337,6 +352,7 @@ class CodeTransformer(ast.NodeTransformer):
 
     def visit_Assign(self,node):
         nodes = []
+        # [TODO] value should only be evaluated once
         for target in node.targets:
             nodes += self.handle_single_assign(target, node.value)
         return nodes
@@ -468,7 +484,7 @@ class CodeTransformer(ast.NodeTransformer):
 
     def visit_Name(self, node, assigned = False):
         if not assigned and node.id not in self.scopeManager.defined_names:
-            if node.id not in self.scopeManager.locals['.'.join(self.scopeManager.named_ctx)]:
+            if not self.scopeManager.in_locals(node.id):
                 nodes, new_name = self.visit_Name(ast.Name(self.FManager.get_new_var()), assigned=True)
                 new_node = ast.Name(self.scopeManager.getName(node.id, assigned))
                 nodes += [ast.Assign([new_name], ast.Call(ast.Name("global_wrapper"), [new_node], []))]
