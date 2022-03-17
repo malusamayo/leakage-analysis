@@ -54,7 +54,7 @@ def test_scaler():
     template("nb_473437.py", [])
 
 def test_pca():
-    template("nb_205857.py", ["KMeans.fit", "RandomForestClassifier.fit", "Unbound.fit"]) 
+    template("nb_205857.py", ["KMeans.fit", "RandomForestClassifier.fit", "Unknown.fit"]) 
     template("nb_471253.py", [])
 
 def test_countvec():
@@ -75,8 +75,8 @@ def test_equiv_edge():
     template("nb_282393.py", ["Sequential.fit_generator"])
 
 def test_loop():
-    template("nb_175471.py", ["MultinomialNB.fit", "Unbound.fit"]) 
-    template("nb_248151.py", ["Unbound.fit"]) 
+    template("nb_175471.py", ["MultinomialNB.fit", "Unknown.fit"]) 
+    template("nb_248151.py", ["Unknown.fit"]) 
 
 def test_context_sensitivity():
     template("nb_273933.py", ["GridSearchCV.fit", "Unknown.fit", "KNeighborsClassifier.fit"])

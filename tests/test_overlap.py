@@ -34,7 +34,7 @@ def test_smote():
     template("yogmoh_news-category.py", ["RandomForestClassifier.fit", "Unknown.fit", "XGBClassifier.fit"])
 
 def test_advanced():
-    template("dktalaicha_credit-card-fraud-detection-using-smote-adasyn.py", ["LogisticRegression.fit", "Unbound.fit"])
+    template("dktalaicha_credit-card-fraud-detection-using-smote-adasyn.py", ["LogisticRegression.fit", "Unknown.fit"])
     template("nb_598984.py",[])
 
 def test_funcdef():
