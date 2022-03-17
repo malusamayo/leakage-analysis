@@ -57,7 +57,6 @@ class FactManager(object):
     def get_new_invo(self):
         old_invo = self.invo_num
         self.invo_num += 1
-        self.add_fact("NextInvoke", ("$invo" + str(old_invo), "$invo" + str(self.invo_num)))
         return "$invo" + str(old_invo)
 
     def get_new_var(self):
@@ -152,6 +151,11 @@ class FactGenerator(ast.NodeVisitor):
             for invo in self.meth2invokes[meth_name]:
                 self.FManager.add_fact("InvokeInLoop", (invo,))
 
+    def build_invoke_graphs(self):
+        for _, invos in self.meth2invokes.items():
+            for (from_invo, to_invo) in zip(invos, invos[1:] + ["invo_end"]):
+                self.FManager.add_fact("NextInvoke", (from_invo, to_invo))
+
     def add_loop_facts(self, cur_invo, meth_name):
         self.FManager.add_fact("InvokeInLoop", (cur_invo,))
         self.meth_in_loop.add(meth_name)
@@ -159,6 +163,7 @@ class FactGenerator(ast.NodeVisitor):
     def visit_Module(self, node) :
         ret = ast.NodeTransformer.generic_visit(self, node)
         self.mark_loopcalls()
+        self.build_invoke_graphs()
         return ret
 
     def visit_Import(self,node):

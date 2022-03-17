@@ -595,6 +595,8 @@ VarEquals(var1, var2) :-
     LoadIndex(var1, base1, i1), LoadIndex(var2, base2, i2), (i1 = i2; VarEquals(i1, i2))),
     VarEquals(base1, base2).
 
+// add LoadSlice case [TODO]
+
 VarEquals(var1, var2) :-
     CallGraphEdge(invo1, _, meth, _), ActualParam(1, invo1, param1), ActualReturn(0, invo1, var1),
     CallGraphEdge(invo2, _, meth, _), ActualParam(1, invo2, param2), ActualReturn(0, invo2, var2),
@@ -614,6 +616,7 @@ CallGraphEdge(invo, callerCtx, toMeth, calleeCtx) :-
 
 Reachable("", ["", ""]). // entry point
 
+// [TODO] invoke graph
 .decl InvokeEdge(to_invo:Invocation, to_ctx:Context, from_invo:Invocation, from_ctx:Context)
 .decl InvokePath(to_invo:Invocation, to_ctx:Context, from_invo:Invocation, from_ctx:Context)
 InvokeEdge(to_invo, ctx, from_invo, ctx) :-
@@ -621,26 +624,17 @@ InvokeEdge(to_invo, ctx, from_invo, ctx) :-
     CallGraphEdge(from_invo, ctx, _, _),
     CallGraphEdge(to_invo, ctx, _, _).
 
-NextInvoke(from_invo, "ctx_end"),
-InvokeEdge("ctx_end", ctx, from_invo, ctx) :-
-    NextInvoke(from_invo, to_invo),
-    CallGraphEdge(from_invo, ctx, _, _),
-    CallGraphEdge(to_invo, ctx2, _, _),
-    ctx != ctx2.
-
 InvokeEdge(to_invo, calleeCtx, from_invo, callerCtx) :-
     CallGraphEdge(from_invo, callerCtx, toMeth, calleeCtx),
     Invoke(to_invo, _, toMeth),
     CallGraphEdge(to_invo, calleeCtx, _, _),
-    NextInvoke(invo0, to_invo),
-    Invoke(invo0, _, inMeth),
-    inMeth != toMeth.
+    !NextInvoke(_, to_invo).
 
 InvokeEdge(to_invo, callerCtx, from_invo, calleeCtx) :-
     InvokeEdge(to_invo, callerCtx, mid_invo, callerCtx),
     CallGraphEdge(mid_invo, callerCtx, toMeth, calleeCtx),
     Invoke(from_invo, _, toMeth),
-    NextInvoke(from_invo, "ctx_end").
+    NextInvoke(from_invo, "invo_end").
 
 InvokePath(to_invo, to_ctx, from_invo, from_ctx) :-
     InvokeEdge(to_invo, to_ctx, from_invo, from_ctx).
@@ -1009,6 +1003,7 @@ Overlap analysis
 DataOverlap(train, ctx1, test, ctx2) :- // split with slicing will never be recognized as overlaps
     FlowFromExtended(test, ctx2, src_equiv, ctx_src, "data"), 
     FlowFromExtended(train, ctx1, src_equiv, ctx_src, "equiv").
+// [TODO] update rules transitive + varequal
 
 // [TODO] Overlap in fields/contents
 DataOverlap(train, ctx1, test, ctx2) :- DataOverlap(test, ctx2, train, ctx1).
