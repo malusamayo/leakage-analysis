@@ -120,21 +120,25 @@ class CodeTransformer(ast.NodeTransformer):
     def visit_For(self, node):
         nodes, node.iter = self.visitNameOnly(node.iter)
 
-        def visit_Iter(nodes, target, iter_id):
-            for i, x in enumerate(target.elts):
-                if type(x) == ast.Name:
-                    nodes1, target.elts[i] = self.visit_Name(x, assigned=True)
-                    nodes += nodes1
-                elif type(x) in [ast.Tuple, ast.List]:
-                    visit_Iter(nodes, x, iter_id)
-                else:
-                    assert 0
+        # def visit_Iter(nodes, target, iter_id):
+        #     for i, x in enumerate(target.elts):
+        #         if type(x) == ast.Name:
+        #             nodes1, target.elts[i] = self.visit_Name(x, assigned=True)
+        #             nodes += nodes1
+        #         elif type(x) in [ast.Tuple, ast.List]:
+        #             visit_Iter(nodes, x, iter_id)
+        #         else:
+        #             assert 0
 
         if type(node.target) == ast.Name:
             nodes1, node.target = self.visit_Name(node.target, assigned=True)
             nodes += nodes1
         elif type(node.target) in [ast.Tuple, ast.List]:
-            visit_Iter(nodes, node.target, node.iter.id)
+            new_var = ast.Name(self.FManager.get_new_var())
+            node.body = [ast.Assign([node.target], new_var)] + node.body
+            nodes1, node.target = self.visit_Name(new_var, assigned=True)
+            nodes += nodes1
+            # visit_Iter(nodes, node.target, node.iter.id)
         else:
             assert 0
         
