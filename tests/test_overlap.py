@@ -9,7 +9,7 @@ def template(test_file, taintMethods):
     main.main(test_file_path)
 
     assert os.path.exists(test_fact_path), "Leak result not found!"
-    df = pd.read_csv(test_fact_path, sep="\t", names=["model1", "model2", "invo", "method"])
+    df = pd.read_csv(test_fact_path, sep="\t", names=["model1", "ctx1", "model2", "ctx2", "invo", "method"])
     # isTainted = df["method"].map(lambda m: m in taintMethods).any()
     print(df["method"])
 

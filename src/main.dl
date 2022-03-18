@@ -1033,42 +1033,42 @@ DataOverlap(train, ctx1, test, ctx2) :-
 /* -----------------------------
 Training/validation/test data rules
 ----------------------------- */
-.decl TrainingDataWithModel(model:Var, train:Var, invo:Invocation, meth:Method)
-.decl ValOrTestDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
-.decl ScoredDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
-.decl TestDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method)
-.decl ValDataWithModel(model:Var, val:Var, invo:Invocation, meth:Method)
-.decl TrainTestPair(trainModel:Var, train:Var, testModel:Var, test:Var)
-.decl TrainValPair(trainModel:Var, train:Var, valModel:Var, val:Var)
-.decl IsModel(model:Var)
+.decl TrainingDataWithModel(model:Var, train:Var, invo:Invocation, meth:Method, ctx:Context)
+.decl ValOrTestDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method, ctx:Context)
+.decl ScoredDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method, ctx:Context)
+.decl TestDataWithModel(model:Var, test:Var, invo:Invocation, meth:Method, ctx:Context)
+.decl ValDataWithModel(model:Var, val:Var, invo:Invocation, meth:Method, ctx:Context)
+// .decl TrainTestPair(trainModel:Var, train:Var, testModel:Var, test:Var)
+// .decl TrainValPair(trainModel:Var, train:Var, valModel:Var, val:Var)
+// .decl IsModel(model:Var)
 
-IsModel(model) :- 
-    TrainingDataWithModel(model, _, _, _); ValOrTestDataWithModel(model, _, _, _).
+// IsModel(model) :- 
+//     TrainingDataWithModel(model, _, _, _); ValOrTestDataWithModel(model, _, _, _).
 
-TrainingDataWithModel(model, train, invo, meth) :-
+TrainingDataWithModel(model, train, invo, meth, ctx) :-
     TrainingData(meth, model_idx, idx),
     ActualParam(idx, invo, train),
-    CallGraphEdge(invo, _, meth, _),
+    CallGraphEdge(invo, ctx, meth, _),
     !FilteredTrainingMethod(meth),
     ActualReturn(model_idx, invo, model).
 
 // could be test/validation data; to be determined
-ValOrTestDataWithModel(model, test, invo, meth) :-
+ValOrTestDataWithModel(model, test, invo, meth, ctx) :-
     TestData(meth, model_idx, idx),
     ActualParam(idx, invo, test),
-    CallGraphEdge(invo, _, meth, _),
+    CallGraphEdge(invo, ctx, meth, _),
     ActualParam(model_idx, invo, model).
 
 // find test/validation data used to compute scores
 // [Case 1] score functions called upon models
-ScoredDataWithModel(model, test, invo, meth) :-
-    ValOrTestDataWithModel(model, test, invo, meth),
+ScoredDataWithModel(model, test, invo, meth, ctx) :-
+    ValOrTestDataWithModel(model, test, invo, meth, ctx),
     ScoredData(meth, model_idx, idx),
     ActualParam(idx, invo, test),
     ActualParam(model_idx, invo, model).
 // [Case 2] prediction results are used to compute scores
-ScoredDataWithModel(model, test, invo, meth) :-
-    ValOrTestDataWithModel(model, test, invo, meth),
+ScoredDataWithModel(model, test, invo, meth, ctx1) :-
+    ValOrTestDataWithModel(model, test, invo, meth, ctx1),
     ActualReturn(ret_idx, invo, ret),
     ret_idx = 0,
     FlowFromExtended(res, ctx2, ret, ctx1, _),
@@ -1079,52 +1079,52 @@ ScoredDataWithModel(model, test, invo, meth) :-
 
 // validation data rules
 // [Case 1] Specified method arguments that are used for validation 
-ValDataWithModel(model, val, invo, meth) :-
+ValDataWithModel(model, val, invo, meth, ctx) :-
     ValData(meth, model_idx, idx),
     ActualParam(idx, invo, val),
-    CallGraphEdge(invo, _, meth, _),
+    CallGraphEdge(invo, ctx, meth, _),
     ActualParam(model_idx, invo, model).
-ValDataWithModel(model, val, invo, meth) :-
+ValDataWithModel(model, val, invo, meth, ctx) :-
     ValData(meth, model_idx, idx),
     MethodIndexToKey(idx, keyword, meth),
     ActualKeyParam(keyword, invo, tup),
     keyword = "validation_data",
     StoreIndex(tup, "0", val),
-    CallGraphEdge(invo, _, meth, _),
+    CallGraphEdge(invo, ctx, meth, _),
     ActualParam(model_idx, invo, model).
 // [Case 2] Invoke multiple times in a loop
-ValDataWithModel(model, val, invo, meth) :-
-    ValOrTestDataWithModel(model, val, invo, meth),
+ValDataWithModel(model, val, invo, meth, ctx) :-
+    ValOrTestDataWithModel(model, val, invo, meth, ctx),
     InvokeInLoop(invo).
 // [Case 3] Scored multiple times for different models
 // [TODO] exactly the same, or overlapping data?
-ValDataWithModel(testModel, val, invo, meth),
-ValDataWithModel(testModel2, val2, invo2, meth2) :-
-    ScoredDataWithModel(testModel, val, invo, meth),
-    ScoredDataWithModel(testModel2, val2, invo2, meth2),
+ValDataWithModel(testModel, val, invo, meth, ctx1),
+ValDataWithModel(testModel2, val2, invo2, meth2, ctx2) :-
+    ScoredDataWithModel(testModel, val, invo, meth, ctx1),
+    ScoredDataWithModel(testModel2, val2, invo2, meth2, ctx2),
     // VarEquals(val, val2),
     DataOverlap(val, ctx1, val2, ctx2),
     invo != invo2,
     !FlowFromExtended(testModel, ctx1, testModel2, ctx2, _),
     !FlowFromExtended(testModel2, ctx2, testModel, ctx1, _).
 // [Case 4] propagation to overlapping data
-ValDataWithModel(model, test, invo, meth) :-
-    ValOrTestDataWithModel(model, test, invo, meth),
-    ValDataWithModel(testModel, val, invo, meth),
+ValDataWithModel(model, test, invo, meth, ctx1) :-
+    ValOrTestDataWithModel(model, test, invo, meth, ctx1),
+    ValDataWithModel(testModel, val, invo, meth, ct2),
     (FlowFromExtended(model, ctx1, testModel, ctx2, _); FlowFromExtended(testModel, ctx2, model, ctx1, _)),
     DataOverlap(test, ctx1, val, ctx2).
 
 // all remaining data is treated as validation data
-TestDataWithModel(model, test, invo, meth) :-
-    ValOrTestDataWithModel(model, test, invo, meth),
-    !ValDataWithModel(model, test, invo, meth).
+TestDataWithModel(model, test, invo, meth, ctx) :-
+    ValOrTestDataWithModel(model, test, invo, meth, ctx),
+    !ValDataWithModel(model, test, invo, meth, ctx).
 
 // Test model should be paired with nearest training model
 .decl ModelPair(testModel:Var, ctx1:Context, trainModel:Var, ctx2:Context)
 .decl ModelPairCandidate(testModel:Var, ctx1:Context, trainModel:Var, ctx2:Context)
 ModelPairCandidate(testModel, ctx1, trainModel, ctx2) :-
-    ValOrTestDataWithModel(testModel, test, invo1, _),
-    TrainingDataWithModel(trainModel, train, invo2, _),
+    ValOrTestDataWithModel(testModel, test, invo1, _, ctx1),
+    TrainingDataWithModel(trainModel, train, invo2, _, ctx2),
     FlowFromExtended(testModel, ctx1, trainModel, ctx2, _),
     InvokePath(invo1, ctx1, invo2, ctx2).
 
@@ -1133,8 +1133,8 @@ ModelPairCandidate(testModel, ctx1, trainModel, ctx2) :-
 
 ModelPair(testModel, ctx1, trainModel, ctx2) :-
     ModelPairCandidate(testModel, ctx1, trainModel, ctx2),
-    TrainingDataWithModel(trainModel, _, invo2, _),
-    c2 = count : { ModelPairCandidate(testModel, ctx1, trainModel2, ctx3), TrainingDataWithModel(trainModel2, _, invo3, _), InvokePath(invo3, ctx3, invo2, ctx2), trainModel2 != trainModel},
+    TrainingDataWithModel(trainModel, _, invo2, _, ctx2),
+    c2 = count : { ModelPairCandidate(testModel, ctx1, trainModel2, ctx3), TrainingDataWithModel(trainModel2, _, invo3, _, ctx3), InvokePath(invo3, ctx3, invo2, ctx2), trainModel2 != trainModel},
     c2 = 0.
 
 .output InvokeEdge
@@ -1144,32 +1144,32 @@ ModelPair(testModel, ctx1, trainModel, ctx2) :-
 
 // Pairing train/test, train/val data
 // We assume there should be no data overlapping
-TrainTestPair(trainModel, train, testModel, test) :-
-    TestDataWithModel(testModel, test, _, _),
-    TrainingDataWithModel(trainModel, train, _, _),
-    !DataOverlap(test, ctx1, train, ctx2),
-    ModelPair(testModel, ctx1, trainModel, ctx2).
-TrainValPair(trainModel, train, valModel, val) :-
-    ValDataWithModel(valModel, val, _, _),
-    TrainingDataWithModel(trainModel, train, _, _),
-    !DataOverlap(val, ctx1, train, ctx2),
-    ModelPair(valModel, ctx1, trainModel, ctx2).
+// TrainTestPair(trainModel, train, testModel, test) :-
+//     TestDataWithModel(testModel, test, _, _),
+//     TrainingDataWithModel(trainModel, train, _, _),
+//     !DataOverlap(test, ctx1, train, ctx2),
+//     ModelPair(testModel, ctx1, trainModel, ctx2).
+// TrainValPair(trainModel, train, valModel, val) :-
+//     ValDataWithModel(valModel, val, _, _),
+//     TrainingDataWithModel(trainModel, train, _, _),
+//     !DataOverlap(val, ctx1, train, ctx2),
+//     ModelPair(valModel, ctx1, trainModel, ctx2).
 
 /* -----------------------------
 Leak detection rules
 ----------------------------- */
-.decl Leak(var:Var, invo:Invocation, meth:Method)
-.decl PreProcessingLeak(var:Var, invo:Invocation, meth:Method)
-.decl OverlapLeak(testModel:Var, trainModel:Var, invo:Invocation, meth:Method)
-.decl FinalOverlapLeak(testModel:Var, trainModel:Var, invo:Invocation, meth:Method, c:number)
-.decl MultiUseTestLeak(test:Var, invo:Invocation, meth:Method)
-.decl Telemetry_PreProcessingLeak(trainModel:Var, train:Var, trainInvo:Invocation, trainMeth:Method, testModel:Var, test:Var, testInvo:Invocation, testMeth:Method, des:Var, src:Var)
-.decl Telemetry_OverlapLeak(trainModel:Var, train:Var, trainInvo:Invocation, trainMeth:Method, testModel:Var, test:Var, testInvo:Invocation, testMeth:Method)
-.decl Telemetry_MultiUseTestLeak(testModel:Var, test:Var, testInvo:Invocation, testMeth:Method, testModel2:Var, test2:Var, testInvo2:Invocation, testMeth2:Method)
+// .decl Leak(var:Var, invo:Invocation, meth:Method)
+.decl PreProcessingLeak(var:Var, invo:Invocation, meth:Method, ctx:Context)
+.decl OverlapLeak(testModel:Var, ctx1:Context, trainModel:Var, ctx2:Context, invo:Invocation, meth:Method)
+.decl FinalOverlapLeak(trainModel:Var, train:Var, invo:Invocation, meth:Method, ctx:Context, c:number)
+.decl MultiUseTestLeak(test:Var, invo:Invocation, meth:Method, ctx:Context)
+.decl Telemetry_PreProcessingLeak(trainModel:Var, train:Var, trainInvo:Invocation, trainMeth:Method, ctx1:Context, testModel:Var, test:Var, testInvo:Invocation, testMeth:Method, ctx2:Context, des:Var, src:Var)
+.decl Telemetry_OverlapLeak(trainModel:Var, train:Var, trainInvo:Invocation, trainMeth:Method, ctx1:Context, testModel:Var, test:Var, testInvo:Invocation, testMeth:Method, ctx2:Context)
+.decl Telemetry_MultiUseTestLeak(testModel:Var, test:Var, testInvo:Invocation, testMeth:Method, ctx1:Context, testModel2:Var, test2:Var, testInvo2:Invocation, testMeth2:Method, ctx2:Context)
 
-Leak(var, invo, meth) :-
-    PreProcessingLeak(var, invo, meth);
-    OverlapLeak(_, var, invo, meth).
+// Leak(var, invo, meth) :-
+//     PreProcessingLeak(var, invo, meth);
+//     OverlapLeak(_, var, invo, meth).
 
 // General edges/taints
 // Taints are initialized at places where pre-processing leak might happen
@@ -1197,13 +1197,14 @@ Pre-processing leak detection
 ReduceEdge(to, toCtx, from, fromCtx) :-
     TaintStartsTarget(to, toCtx, from, fromCtx, "rowset").
 
-Telemetry_PreProcessingLeak(trainModel, train, invo, meth, testModel, test, invo2, meth2, reduced_from_src, src),
-PreProcessingLeak(src, invo, meth) :-
-    (TrainTestPair(trainModel, train, testModel, test); TrainValPair(trainModel, train, testModel, test)),
-    TrainingDataWithModel(trainModel, train, invo, meth),
-    ValOrTestDataWithModel(testModel, test, invo2, meth2),
+Telemetry_PreProcessingLeak(trainModel, train, invo, meth, ctx2, testModel, test, invo2, meth2, ctx1, reduced_from_src, src),
+PreProcessingLeak(src, invo, meth, ctx2) :-
+    TrainingDataWithModel(trainModel, train, invo, meth, ctx2),
+    ValOrTestDataWithModel(testModel, test, invo2, meth2, ctx1),
+    ModelPair(testModel, ctx1, trainModel, ctx2),
+    !DataOverlap(test, ctx1, train, ctx2),
     ReduceEdge(reduced_from_src, r_ctx, src, src_ctx),
-    (FlowFromExtended(train, _, reduced_from_src, r_ctx, _); FlowFromExtended(test, ctx1, reduced_from_src, r_ctx, _)),
+    (FlowFromExtended(train, ctx2, reduced_from_src, r_ctx, _); FlowFromExtended(test, ctx1, reduced_from_src, r_ctx, _)),
     DataOverlap(test, ctx1, src, src_ctx).
 
 /* -----------------------------
@@ -1215,18 +1216,18 @@ DuplicateEdge(to, toCtx, from, fromCtx) :-
     TaintStartsTarget(to, toCtx, from, fromCtx, "dup").
 
 // [TODO] only problematic when all test data overlaps
-Telemetry_OverlapLeak(trainModel, train, invo, meth, testModel, test, invo2, meth2),
-OverlapLeak(testModel, trainModel, invo, meth) :-
-    TrainingDataWithModel(trainModel, train, invo, meth),
-    ValOrTestDataWithModel(testModel, test, invo2, meth2),
+Telemetry_OverlapLeak(trainModel, train, invo, meth, ctx1, testModel, test, invo2, meth2, ctx2),
+OverlapLeak(testModel, ctx2, trainModel, ctx1, invo, meth) :-
+    TrainingDataWithModel(trainModel, train, invo, meth, ctx1),
+    ValOrTestDataWithModel(testModel, test, invo2, meth2, ctx2),
     DataOverlap(train, ctx1, test, ctx2),
     // !VarEquals(train, test),
     ModelPair(testModel, ctx1, trainModel, ctx2).
 
-FinalOverlapLeak(trainModel, train, invo, meth, c1) :-
-    TrainingDataWithModel(trainModel, train, invo, meth),
-    c1 = count : { ModelPair(testModel, _, trainModel, _), ValOrTestDataWithModel(testModel, test, invo2, meth2)},
-    c2 = count : { ModelPair(testModel, _, trainModel, _), ValOrTestDataWithModel(testModel, test, invo2, meth2), Telemetry_OverlapLeak(trainModel, train, invo, meth, testModel, test, invo2, meth2)},
+FinalOverlapLeak(trainModel, train, invo, meth, ctx1, c1) :-
+    TrainingDataWithModel(trainModel, train, invo, meth, ctx1),
+    c1 = count : { ModelPair(testModel, ctx2, trainModel, ctx1), ValOrTestDataWithModel(testModel, test, invo2, meth2, ctx2)},
+    c2 = count : { ModelPair(testModel, ctx2, trainModel, ctx1), ValOrTestDataWithModel(testModel, test, invo2, meth2, ctx2), Telemetry_OverlapLeak(trainModel, train, invo, meth, ctx1, testModel, test, invo2, meth2, ctx2)},
     // c3 = count : { ModelPair(testModel, _, trainModel, _), ValOrTestDataWithModel(testModel, test, invo2, meth2), VarEquals(train, test)},
     c1 = c2,
     c1 > 0.
@@ -1234,48 +1235,54 @@ FinalOverlapLeak(trainModel, train, invo, meth, c1) :-
 /* -----------------------------
 No test data detection
 ----------------------------- */
-.decl NoValAndTestData(trainModel:Var, train:Var, invo:Invocation, meth:Method)
-.decl NoTestData(trainModel:Var, train:Var, invo:Invocation, meth:Method)
+.decl NoValAndTestData(trainModel:Var, train:Var, invo:Invocation, meth:Method, ctx:Context)
+.decl NoTestData(trainModel:Var, train:Var, invo:Invocation, meth:Method, ctx:Context)
 
-NoValAndTestData(trainModel, train,  invo, meth) :-
-    TrainingDataWithModel(trainModel, train, invo, meth),
-    !TrainValPair(trainModel, train, _, _),
-    !TrainTestPair(trainModel, train, _, _).
+NoValAndTestData(trainModel, train, invo, meth, ctx2) :-
+    TrainingDataWithModel(trainModel, train, invo, meth, ctx2),
+    c = count : { ModelPair(testModel, ctx1, trainModel, ctx2), ValOrTestDataWithModel(testModel, test, _, _, ctx1), !DataOverlap(train, ctx2, test, ctx1)},
+    c = 0.
 
-NoTestData(trainModel, train, invo, meth) :-
-    TrainingDataWithModel(trainModel, train, invo, meth),
-    TrainValPair(trainModel, train, _, _),
-    !TrainTestPair(trainModel, train, _, _).
+NoTestData(trainModel, train, invo, meth, ctx2) :-
+    TrainingDataWithModel(trainModel, train, invo, meth, ctx2),
+    c = count : {ModelPair(testModel, ctx1, trainModel, ctx2), TestDataWithModel(testModel, test, _, _, ctx1), !DataOverlap(train, ctx2, test, ctx1)},
+    c = 0.
 
-.decl FilteredTrainTestPair(trainModel:Var, train:Var, testModel:Var, test:Var)
-.decl FinalTrainTestPair(trainModel:Var, train:Var, testModel:Var, test:Var)
-.decl FinalNoTestData(msg:symbol)
-FilteredTrainTestPair(trainModel, train, testModel, test) :-
-    TrainTestPair(trainModel, train, testModel, test),
-    ScoredDataWithModel(scoreModel, data, _, _),
-    !FlowFromExtended(testModel, _, scoreModel, _, _), 
-    !FlowFromExtended(scoreModel, _, testModel, _, _),
-    DataOverlap(test, _, data, _).
-FinalTrainTestPair(trainModel, train, testModel, test) :-
-    TrainTestPair(trainModel, train, testModel, test),
-    !FilteredTrainTestPair(trainModel, train, testModel, test).
-FinalNoTestData("NOTEST") :-
-    ValOrTestDataWithModel(_, _, _, _),
-    !FinalTrainTestPair(_, _, _, _).
+.decl FilteredTests(testModel:Var, test:Var, invo:Invocation, meth:Method, ctx:Context)
+.decl FinalNoTestData(msg:symbol, cnt:number)
+FilteredTests(testModel, test, invo, meth, ctx1) :-
+    ModelPair(testModel, ctx1, trainModel, ctx2),
+    TrainingDataWithModel(trainModel, train, _, _, ctx2),
+    TestDataWithModel(testModel, test, invo, meth, ctx1),
+    ScoredDataWithModel(scoreModel, data, _, _, ctx3),
+    !FlowFromExtended(testModel, ctx1, scoreModel, ctx3, _), 
+    !FlowFromExtended(scoreModel, ctx3, testModel, ctx1, _),
+    DataOverlap(test, ctx1, data, ctx3).
+FilteredTests(testModel, test, invo, meth, ctx1) :-
+    ModelPair(testModel, ctx1, trainModel, ctx2),
+    TrainingDataWithModel(trainModel, train, _, _, ctx2),
+    TestDataWithModel(testModel, test, invo, meth, ctx1),
+    DataOverlap(test, ctx1, train, ctx2).
+FinalNoTestData("NOTEST", c1) :-
+    c1 = count : {ModelPair(testModel, ctx1, _, _), TestDataWithModel(testModel, test, invo, meth, ctx1)},
+    c2 = count : {ModelPair(testModel, ctx1, _, _), FilteredTests(testModel, test, invo, meth, ctx1)},
+    c1 = c2.
+
+.output FilteredTests
 .output FinalOverlapLeak
 .output FinalNoTestData
 
 /* -----------------------------
 Multi-used test data detection
 ----------------------------- */
-Telemetry_MultiUseTestLeak(testModel, test, invo, meth, testModel2, test2, invo2, meth2),
-MultiUseTestLeak(test, invo, meth) :-
-    ScoredDataWithModel(testModel, val, invo, meth),
-    ScoredDataWithModel(testModel2, val2, invo2, meth2),
-    DataOverlap(test, _, test2, _),
+Telemetry_MultiUseTestLeak(testModel, test, invo, meth, ctx1, testModel2, test2, invo2, meth2, ctx2),
+MultiUseTestLeak(test, invo, meth, ctx1) :-
+    ScoredDataWithModel(testModel, test, invo, meth, ctx1),
+    ScoredDataWithModel(testModel2, test2, invo2, meth2, ctx2),
+    DataOverlap(test, ctx1, test2, ctx2),
     invo != invo2,
-    !FlowFromExtended(testModel, _, testModel2, _, _),
-    !FlowFromExtended(testModel2, _, testModel, _, _).
+    !FlowFromExtended(testModel, ctx1, testModel2, ctx2, _),
+    !FlowFromExtended(testModel2, ctx2, testModel, ctx1, _).
 
 // ---- outputs ----
 .output VarEquals
@@ -1292,8 +1299,8 @@ MultiUseTestLeak(test, invo, meth) :-
 
 .output DataOverlap
 
-.output TrainTestPair
-.output TrainValPair
+// .output TrainTestPair
+// .output TrainValPair
 .output TrainingDataWithModel
 .output TestDataWithModel
 .output ValDataWithModel
