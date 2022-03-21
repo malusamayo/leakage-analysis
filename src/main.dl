@@ -98,7 +98,7 @@ PureMethod(meth) :-
 .decl MethodUpdate(index:number, meth:Method)
 MethodUpdate(0, meth) :-
     Invoke(_, meth, _),
-    match(".*[.](fit|fit_transform)", meth).
+    match(".*[.](fit|fit_transform|train)", meth).
 MethodUpdate(to, meth) :-
     ParamToParamFlow(to, from, meth).
 
@@ -1116,26 +1116,55 @@ ValDataWithModel(model, test, invo, meth, ctx1) :-
     (FlowFromExtended(model, ctx1, testModel, ctx2, _); FlowFromExtended(testModel, ctx2, model, ctx1, _)),
     DataOverlap(test, ctx1, val, ctx2).
 
-// all remaining data is treated as validation data
+// all remaining data is treated as test data
 TestDataWithModel(model, test, invo, meth, ctx) :-
     ValOrTestDataWithModel(model, test, invo, meth, ctx),
     !ValDataWithModel(model, test, invo, meth, ctx).
 
+// extra cases for modeling pytorch
+.decl TorchModelWithData(model:Var, train:Var, invo:Invocation, meth:Method)
+TorchModelWithData(model, data, invo, meth) :-
+    Invoke(invo, meth, _),
+    match(".*[.](forward)", meth),
+    ActualParam(0, invo, model),
+    ActualParam(1, invo, data).
+
+TorchModelWithData(model, data, invo, meth) :-
+    Invoke(invo, meth, _),
+    model = as(meth, Var),
+    VarType(model, subtype),
+    SubType(subtype, "Module"),
+    ActualParam(1, invo, data).
+
+TrainingDataWithModel(model, data, invo, meth, ctx) :-
+    TorchModelWithData(model, data, invo, meth),
+    FlowFromExtended(loss, ctx2, data, ctx, _),
+    CallGraphEdge(invo2, ctx2, meth2, _),
+    match(".*[.](backward)", meth2),
+    ActualParam(0, invo2, loss).
+
+ValOrTestDataWithModel(model, data, invo, meth, ctx) :-
+    TorchModelWithData(model, data, invo, meth),
+    CallGraphEdge(invo, ctx, meth, _),
+    !TrainingDataWithModel(model, data, invo, meth, ctx).
+
+.output TorchModelWithData
+
 // Test model should be paired with nearest training model
 .decl ModelPair(testModel:Var, ctx1:Context, trainModel:Var, ctx2:Context)
 .decl ModelPairCandidate(testModel:Var, ctx1:Context, trainModel:Var, ctx2:Context)
+.decl Telemetry_ModelPair(testModel:Var, test:Var, invo:Invocation, meth:Method, ctx1:Context, trainModel:Var, train:Var, invo2:Invocation, meth2:Method, ctx2:Context)
 ModelPairCandidate(testModel, ctx1, trainModel, ctx2) :-
-    ValOrTestDataWithModel(testModel, test, invo1, _, ctx1),
-    TrainingDataWithModel(trainModel, train, invo2, _, ctx2),
+    ValOrTestDataWithModel(testModel, _, invo1, _, ctx1),
+    TrainingDataWithModel(trainModel, _, invo2, _, ctx2),
     FlowFromExtended(testModel, ctx1, trainModel, ctx2, _),
     InvokePath(invo1, ctx1, invo2, ctx2).
 
-// ModelPair(testModel, ctx1, trainModel, ctx2) :-
-//     ModelPairCandidate(testModel, ctx1, trainModel, ctx2).
-
+Telemetry_ModelPair(trainModel, train, invo2, meth2, ctx2, testModel, test, invo1, meth1, ctx1),
 ModelPair(testModel, ctx1, trainModel, ctx2) :-
     ModelPairCandidate(testModel, ctx1, trainModel, ctx2),
-    TrainingDataWithModel(trainModel, _, invo2, _, ctx2),
+    ValOrTestDataWithModel(testModel, test, invo1, meth1, ctx1),
+    TrainingDataWithModel(trainModel, train, invo2, meth2, ctx2),
     c2 = count : { ModelPairCandidate(testModel, ctx1, trainModel2, ctx3), TrainingDataWithModel(trainModel2, _, invo3, _, ctx3), InvokePath(invo3, ctx3, invo2, ctx2), trainModel2 != trainModel},
     c2 = 0.
 
@@ -1143,7 +1172,7 @@ ModelPair(testModel, ctx1, trainModel, ctx2) :-
 .output InvokePath
 .output ModelPairCandidate
 .output ModelPair
-
+.output Telemetry_ModelPair
 // Pairing train/test, train/val data
 // We assume there should be no data overlapping
 // TrainTestPair(trainModel, train, testModel, test) :-
