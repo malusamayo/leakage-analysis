@@ -40,6 +40,7 @@ class FactManager(object):
             "FormalReturn": [],
             # "MethodUpdate": [],
             "VarType": [],
+            "SubType": [],
             "VarInMethod": [],
             "Alloc": [],
             "LocalMethod": [],
@@ -127,9 +128,12 @@ class FactGenerator(ast.NodeVisitor):
                             'list':['module', 'list'],
                             'dict':['module', 'dict'],
                             'str':['module', 'str']})
+        def filter_unbound(x):
+            return ' | '.join([t for t in x.split(' | ') if t != "Unbound"])
+        
         for varname, v in self.type_map.items():
             if v[0] == "var":
-                self.FManager.add_fact("VarType", (varname, v[1]))
+                self.FManager.add_fact("VarType", (varname, filter_unbound(v[1])))
         
 
     def import_map_get(self, key):
@@ -160,6 +164,21 @@ class FactGenerator(ast.NodeVisitor):
         self.FManager.add_fact("InvokeInLoop", (cur_invo,))
         self.meth_in_loop.add(meth_name)
 
+    def visit_Body(self, body):
+        if isinstance(body, list):
+            new_values = []
+            for value in body:
+                if isinstance(value, ast.AST):
+                    value = self.visit(value)
+                    if value is None:
+                        continue
+                    elif not isinstance(value, ast.AST):
+                        new_values.extend(value)
+                        continue
+                new_values.append(value)
+            body[:] = new_values
+        return body
+
     def visit_Module(self, node) :
         ret = ast.NodeTransformer.generic_visit(self, node)
         self.mark_loopcalls()
@@ -187,10 +206,15 @@ class FactGenerator(ast.NodeVisitor):
         self.scopeManager.enterNamedBlock(node.name)
         self.in_class = True
         self.FManager.add_fact("LocalClass", (node.name,))
-        ret = ast.NodeTransformer.generic_visit(self, node)
+        for base in node.bases:
+            base_type = self.type_map[base.id][1]
+            if base_type.startswith("Type["):
+                base_type = base_type[5:-1]
+            self.FManager.add_fact("SubType", (node.name, base_type))
+        self.visit_Body(node.body)
         self.in_class = False
         self.scopeManager.leaveNamedBlock()
-        return ret
+        return node
 
     def visit_FunctionDef(self, node):
         self.scopeManager.enterNamedBlock(node.name)
@@ -203,12 +227,12 @@ class FactGenerator(ast.NodeVisitor):
                 self.FManager.add_fact("FormalParam", (i, meth, arg.arg))
             else:
                 self.FManager.add_fact("FormalParam", (i+1, meth, arg.arg))
-        ret = ast.NodeTransformer.generic_visit(self, node)
+        self.visit_Body(node.body)
         if self.in_class and node.name == "__init__":
             self.FManager.add_fact("Alloc", (node.args.args[0].arg, self.FManager.get_new_heap(), self.get_cur_sig()))
             self.FManager.add_fact("FormalReturn", (0, meth, node.args.args[0].arg))
         self.scopeManager.leaveNamedBlock()
-        return ret
+        return node
     
     def visit_For(self, node):
         assert(type(node.iter) == ast.Name)

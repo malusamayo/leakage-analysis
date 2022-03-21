@@ -80,7 +80,7 @@ class CodeTransformer(ast.NodeTransformer):
         self.scopeManager.enterNamedBlock(node.name)
         nodes = []
         for i, base in enumerate(node.bases):
-            nodes1, node.bases[i] = self.visit(base)
+            nodes1, node.bases[i] = self.visitNameOnly(base)
             nodes += nodes1
         node.body = self.visit_Body(node.body)
         self.scopeManager.leaveNamedBlock()
