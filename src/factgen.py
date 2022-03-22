@@ -117,6 +117,7 @@ class FactGenerator(ast.NodeVisitor):
         self.meth2invokes = defaultdict(list)
         self.meth_in_loop = set()
         self.in_loop = False
+        self.loop_var = None
         self.in_class = False
         self.injected_methods = ["__phi__", "set_field_wrapper", "set_index_wrapper", "global_wrapper"]
     
@@ -151,9 +152,9 @@ class FactGenerator(ast.NodeVisitor):
         self.FManager.add_fact("VarInMethod", (varname, self.get_cur_sig()))
 
     def mark_loopcalls(self):
-        for meth_name in self.meth_in_loop:
+        for meth_name, loop_var in self.meth_in_loop:
             for invo in self.meth2invokes[meth_name]:
-                self.FManager.add_fact("InvokeInLoop", (invo,))
+                self.FManager.add_fact("InvokeInLoop", (invo, loop_var))
 
     def build_invoke_graphs(self):
         for _, invos in self.meth2invokes.items():
@@ -161,8 +162,8 @@ class FactGenerator(ast.NodeVisitor):
                 self.FManager.add_fact("NextInvoke", (from_invo, to_invo))
 
     def add_loop_facts(self, cur_invo, meth_name):
-        self.FManager.add_fact("InvokeInLoop", (cur_invo,))
-        self.meth_in_loop.add(meth_name)
+        self.FManager.add_fact("InvokeInLoop", (cur_invo, self.loop_var))
+        self.meth_in_loop.add((meth_name, self.loop_var))
 
     def visit_Body(self, body):
         if isinstance(body, list):
@@ -255,6 +256,7 @@ class FactGenerator(ast.NodeVisitor):
         # else:
         #     assert 0
         self.in_loop = True
+        self.loop_var = node.iter.id
         ret = ast.NodeTransformer.generic_visit(self, node)
         self.in_loop = False
         return ret

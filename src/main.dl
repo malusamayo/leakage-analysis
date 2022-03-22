@@ -46,7 +46,7 @@
 .decl Alloc(var:Var, value:Value, inMeth:Method)
 .decl LocalMethod(meth:Method)
 .decl LocalClass(cls:Type)
-.decl InvokeInLoop(invo:Invocation)
+.decl InvokeInLoop(invo:Invocation, loop_var:Var)
 .decl NextInvoke(invo1:Invocation, invo2:Invocation)
 
 .input AssignVar
@@ -1097,16 +1097,16 @@ ValDataWithModel(model, val, invo, meth, ctx) :-
 // [Case 2] Invoke multiple times in a loop
 ValDataWithModel(model, val, invo, meth, ctx) :-
     ValOrTestDataWithModel(model, val, invo, meth, ctx),
-    InvokeInLoop(invo).
+    !FlowFromExtended(val, ctx, loop_var, _, _),
+    InvokeInLoop(invo, loop_var).
 // [Case 3] Scored multiple times for different models
-// [TODO] exactly the same, or overlapping data?
 ValDataWithModel(testModel, val, invo, meth, ctx1),
 ValDataWithModel(testModel2, val2, invo2, meth2, ctx2) :-
     ScoredDataWithModel(testModel, val, invo, meth, ctx1),
     ScoredDataWithModel(testModel2, val2, invo2, meth2, ctx2),
     // VarEquals(val, val2),
     DataOverlap(val, ctx1, val2, ctx2),
-    invo != invo2,
+    // invo != invo2,
     !FlowFromExtended(testModel, ctx1, testModel2, ctx2, _),
     !FlowFromExtended(testModel2, ctx2, testModel, ctx1, _).
 // [Case 4] propagation to overlapping data
