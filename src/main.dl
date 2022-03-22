@@ -409,6 +409,26 @@ ParamToRetDataFlow(0, 1, meth) :-
 // ** keras specs end **
 
 
+// ** pytorch specs begin **
+ParamToRetEquivFlow(0, 1, meth) :-
+    Invoke(_, meth, _),
+    match("torch[.](from_numpy)", meth).
+ParamToRetEquivFlow(0, 1, meth) :-
+    Invoke(_, meth, _),
+    match(".*(DataLoader)", meth).
+ParamToRetEquivFlow(0, 0, meth) :-
+    Invoke(_, meth, _),
+    match("(Tensor|Unknown|Any)[.](bfloat16|bool|byte|char|double|float|half|int|long|short|to)", meth).
+
+ParamToRetDataFlow(0, 0, meth),
+ParamToRetDataFlow(1, 0, meth) :-
+    Invoke(_, meth, _),
+    match(".*[.](get_splits)", meth).
+ParamToRetDataFlow(0, 1, meth) :-
+    Invoke(_, meth, _),
+    match(".*[.](random_split)", meth).
+// ** pytorch specs end **
+
 /* -------------------
 "Taint" inputs (specified locations for reduce/duplicate in pre-processing)
 ------------------- */
