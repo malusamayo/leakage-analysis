@@ -94,3 +94,6 @@ def test_branch():
 def test_cut():
     template("nb_1090319.py", ["Unknown.fit", "LogisticRegression.fit"]) 
     template("nb_1255091.py", ["DecisionTreeClassifier.fit", "KNeighborsClassifier.fit", 'RandomForestClassifier.fit', 'RandomForestRegressor | ExtraTreesRegressor | BaseForest.fit'])
+
+def test_torch():
+    template("nb_504.py", ["model_0"]) 
