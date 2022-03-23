@@ -46,7 +46,8 @@ class FactManager(object):
             "LocalMethod": [],
             "LocalClass": [],
             "InvokeInLoop": [],
-            "NextInvoke": []
+            "NextInvoke": [],
+            "InvokeLineno": []
         }
 
 
@@ -117,7 +118,7 @@ class FactGenerator(ast.NodeVisitor):
         self.meth2invokes = defaultdict(list)
         self.meth_in_loop = set()
         self.in_loop = False
-        self.loop_var = None
+        self.loop_vars = []
         self.in_class = False
         self.injected_methods = ["__phi__", "set_field_wrapper", "set_index_wrapper", "global_wrapper"]
     
@@ -162,8 +163,9 @@ class FactGenerator(ast.NodeVisitor):
                 self.FManager.add_fact("NextInvoke", (from_invo, to_invo))
 
     def add_loop_facts(self, cur_invo, meth_name):
-        self.FManager.add_fact("InvokeInLoop", (cur_invo, self.loop_var))
-        self.meth_in_loop.add((meth_name, self.loop_var))
+        for loop_var in self.loop_vars:
+            self.FManager.add_fact("InvokeInLoop", (cur_invo, loop_var))
+            self.meth_in_loop.add((meth_name, loop_var))
 
     def visit_Body(self, body):
         if isinstance(body, list):
@@ -256,8 +258,9 @@ class FactGenerator(ast.NodeVisitor):
         # else:
         #     assert 0
         self.in_loop = True
-        self.loop_var = node.iter.id
+        self.loop_vars.append(node.iter.id)
         ret = ast.NodeTransformer.generic_visit(self, node)
+        self.loop_vars.pop()
         self.in_loop = False
         return ret
     
@@ -292,7 +295,9 @@ class FactGenerator(ast.NodeVisitor):
                     self.FManager.add_fact("StoreFieldSSA", (target_name, value.args[0].id, value.args[1].value, value.args[2].id))
                 elif value.func.id == "set_index_wrapper":
                     idx = value.args[1]
-                    if type(idx) == ast.Index:
+                    if type(idx) == ast.Name:
+                        self.FManager.add_fact("StoreIndexSSA", (target_name, value.args[0].id, idx.id, value.args[2].id))
+                    elif type(idx) == ast.Index:
                         assert type(idx.value) == ast.Name
                         self.FManager.add_fact("StoreIndexSSA", (target_name, value.args[0].id, idx.value.id, value.args[2].id))
                     elif type(idx) == ast.Call:
@@ -430,12 +435,14 @@ class FactGenerator(ast.NodeVisitor):
     
     def visit_Call(self, node):
         cur_invo = self.FManager.get_new_invo()
+        self.FManager.add_fact("InvokeLineno", (cur_invo, node.lineno))
         self.meth2invokes[self.get_cur_sig()].append(cur_invo)
         if type(node.func) == ast.Attribute:
             hasInnerCall = self.visit_Attribute(node.func, cur_invo=cur_invo)
             # simulating invocations insde higher-order functions
             if hasInnerCall:
                 new_invo = self.FManager.get_new_invo()
+                self.FManager.add_fact("InvokeLineno", (new_invo, node.lineno))
                 func_name = ""
                 for kw in node.keywords:
                     if kw.arg == "func":
@@ -478,6 +485,8 @@ class FactGenerator(ast.NodeVisitor):
         if type(args) == ast.arguments:
             return args
         for i, arg in enumerate(args):
+            if type(arg) == ast.Starred:
+                arg = arg.value
             assert type(arg) == ast.Name
             self.FManager.add_fact("ActualParam", (i + 1, cur_invo, arg.id))
         return args

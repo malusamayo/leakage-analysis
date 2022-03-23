@@ -102,19 +102,19 @@ class CodeTransformer(ast.NodeTransformer):
     def visit_Return(self, node):
         nodes1 = []
         if node.value:
-            nodes1, node.value = self.visitNameAndTupleOnly(node.value)
+            nodes1, node.value = self.visitOnly(node.value, [ast.Tuple])
         return nodes1 + [node]
     
     def visit_Yield(self, node):
         nodes1 = []
         if node.value:
-            nodes1, node.value = self.visitNameAndTupleOnly(node.value)
+            nodes1, node.value = self.visitOnly(node.value, [ast.Tuple])
         return nodes1 + [node]
 
     def visit_YieldFrom(self, node):
         nodes1 = []
         if node.value:
-            nodes1, node.value = self.visitNameAndTupleOnly(node.value)
+            nodes1, node.value = self.visitOnly(node.value, [ast.Tuple])
         return nodes1 + [node]
 
     def visit_For(self, node):
@@ -415,7 +415,7 @@ class CodeTransformer(ast.NodeTransformer):
         return nodes, ast.BoolOp(node.op, new_vs)
 
     def visit_UnaryOp(self, node):
-        nodes, oper = self.visitNameAndConsOnly(node.operand)
+        nodes, oper = self.visitOnly(node.operand, [ast.Constant])
         return nodes, ast.UnaryOp(node.op, oper)
 
     def visit_Compare(self, node):
@@ -450,7 +450,7 @@ class CodeTransformer(ast.NodeTransformer):
         nodes = []
         arg_names = []
         for i, arg in enumerate(args):
-            nodes1, new_arg = self.visitNameOnly(arg)
+            nodes1, new_arg = self.visitOnly(arg, [ast.Starred])
             nodes += nodes1
             arg_names.append(new_arg)
         return nodes, arg_names
@@ -472,16 +472,9 @@ class CodeTransformer(ast.NodeTransformer):
             return nodes + nodes1 + [ast.Assign([new_var], newNode)], new_var
         return nodes, newNode
 
-    def visitNameAndConsOnly(self, node):
+    def visitOnly(self, node, nodetypes):
         nodes, newNode = self.visit(node)
-        if type(newNode) not in [ast.Name, ast.Constant]:
-            nodes1, new_var = self.visit_Name(ast.Name(self.FManager.get_new_var()), assigned=True)
-            return nodes + nodes1 +[ast.Assign([new_var], newNode)], new_var
-        return nodes, newNode
-    
-    def visitNameAndTupleOnly(self, node):
-        nodes, newNode = self.visit(node)
-        if type(newNode) not in [ast.Name, ast.Tuple]:
+        if type(newNode) not in [ast.Name] + nodetypes:
             nodes1, new_var = self.visit_Name(ast.Name(self.FManager.get_new_var()), assigned=True)
             return nodes + nodes1 + [ast.Assign([new_var], newNode)], new_var
         return nodes, newNode
@@ -502,7 +495,7 @@ class CodeTransformer(ast.NodeTransformer):
         nodes = []
         new_list = []
         for v in node.elts:
-            newNodes, new_v = self.visitNameAndConsOnly(v)
+            newNodes, new_v = self.visitOnly(v, [ast.Constant])
             nodes += newNodes
             new_list.append(new_v)
         return nodes, ast.List(new_list)
@@ -520,7 +513,7 @@ class CodeTransformer(ast.NodeTransformer):
         nodes = []
         new_set = []
         for v in node.elts:
-            newNodes, new_v = self.visitNameAndConsOnly(v)
+            newNodes, new_v = self.visitOnly(v, [ast.Constant])
             nodes += newNodes
             new_set.append(new_v)
         return nodes, ast.Set(new_set)
@@ -530,17 +523,17 @@ class CodeTransformer(ast.NodeTransformer):
         new_keys = []
         new_values = []
         for v in node.keys:
-            newNodes, new_v = self.visitNameAndConsOnly(v)
+            newNodes, new_v = self.visitOnly(v, [ast.Constant])
             nodes += newNodes
             new_keys.append(new_v)
         for v in node.values:
-            newNodes, new_v = self.visitNameAndConsOnly(v)
+            newNodes, new_v = self.visitOnly(v, [ast.Constant])
             nodes += newNodes
             new_values.append(new_v)
         return nodes, ast.Dict(new_keys, new_values)
 
     def visit_FormattedValue(self, node):
-        nodes, new_v = self.visitNameAndConsOnly(node.value)
+        nodes, new_v = self.visitOnly(node.value, [ast.Constant])
         nodes1, new_f = [], node.format_spec
         if node.format_spec:
             nodes1, new_f = self.visit(node.format_spec)
