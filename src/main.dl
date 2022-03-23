@@ -130,6 +130,9 @@ MethodIndexToKey(1, "left", meth),
 MethodIndexToKey(2, "right", meth) :-
     Invoke(_, meth, _),
     match("pandas[.](merge|merge_ordered|merge_asof)", meth).
+MethodIndexToKey(1, "dataset", meth) :-
+    Invoke(_, meth, _),
+    match(".*DataLoader", meth).
 
 // sklearn & imblearn
 MethodIndexToKey(1, "X", meth) :-
@@ -424,7 +427,8 @@ ParamToRetDataFlow(0, 0, meth),
 ParamToRetDataFlow(1, 0, meth) :-
     Invoke(_, meth, _),
     match(".*[.](get_splits)", meth).
-ParamToRetDataFlow(0, 1, meth) :-
+ParamToRetDataFlow(0, 1, meth),
+ParamToRetDataFlow(1, 1, meth) :-
     Invoke(_, meth, _),
     match(".*[.](random_split)", meth).
 // ** pytorch specs end **
@@ -627,6 +631,7 @@ VarEquals(var1, var2) :-
 
 // ---- call-graph construction ----
 .decl CallGraphEdge(invo:Invocation, callerCtx:Context, meth:Method, calleeCtx:Context)
+.decl ArityMatch(invo:Invocation, callerCtx:Context, meth:Method, calleeCtx:Context)
 .decl Reachable(meth:Method, ctx:Context)
 
 Reachable(toMeth, calleeCtx),
@@ -797,6 +802,14 @@ VarPointsTo(to, ctx, value, hctx) :-
     ActualReturn(to_idx, invo, to),
     VarPointsTo(from, ctx, value, hctx).
 
+// arity checking:
+ArityMatch(invo, callerCtx, meth, calleeCtx) :-
+    CallGraphEdge(invo, callerCtx, meth, calleeCtx),
+    !FilteredMethod(meth),
+    c1 = count: {FormalReturn(index, meth, from)},
+    c2 = count: {ActualReturn(index, invo, to)},
+    c1 = c2.
+
 // inter-procedural cases
 InterProcAssign(to, calleeCtx, from, callerCtx) :-
     CallGraphEdge(invo, callerCtx, meth, calleeCtx),
@@ -810,9 +823,17 @@ InterProcAssign(to, calleeCtx, from, callerCtx) :-
     ActualKeyParam(to, invo, from).
 InterProcAssign(to, callerCtx, from, calleeCtx) :-
     CallGraphEdge(invo, callerCtx, meth, calleeCtx),
+    ArityMatch(invo, callerCtx, meth, calleeCtx),
     !FilteredMethod(meth),
     FormalReturn(index, meth, from),
     ActualReturn(index, invo, to).
+// arity mismatch: pair all pairs
+InterProcAssign(to, callerCtx, from, calleeCtx) :-
+    CallGraphEdge(invo, callerCtx, meth, calleeCtx),
+    !ArityMatch(invo, callerCtx, meth, calleeCtx),
+    !FilteredMethod(meth),
+    FormalReturn(_, meth, from),
+    ActualReturn(_, invo, to).
 
 VarPointsTo(to, toCtx, value, hctx) :- 
     InterProcAssign(to, toCtx, from, fromCtx),
