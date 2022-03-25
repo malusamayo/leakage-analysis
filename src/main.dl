@@ -1246,7 +1246,7 @@ Leak detection rules
 // General edges/taints
 // Taints are initialized at places where pre-processing leak might happen
 .decl TaintStarts(var:Var, ctx: Context, label:symbol)
-.decl TaintStartsTarget(to:Var, toCtx:Context, from:Var, fromCtx:Context, label:symbol)
+.decl TaintStartsTarget(to:Var, toCtx:Context, from:Var, fromCtx:Context, invo:Invocation, label:symbol)
 
 TaintStarts(var, callerCtx, label) :-
     CallGraphEdge(invo, callerCtx, meth, _),
@@ -1254,7 +1254,7 @@ TaintStarts(var, callerCtx, label) :-
     ActualReturn(idx, invo, var).
 
 TaintStarts(var, callerCtx, label),
-TaintStartsTarget(target, callerCtx, var, callerCtx, label) :-
+TaintStartsTarget(target, callerCtx, var, callerCtx, invo, label) :-
     CallGraphEdge(invo, callerCtx, meth, _),
     (ParamToParamTaintSourceMethod(toIdx, fromIdx, meth, label), ActualParam(toIdx, invo, target);
     ParamToRetTaintSourceMethod(toIdx, fromIdx, meth, label), ActualReturn(toIdx, invo, target);
@@ -1267,7 +1267,7 @@ Pre-processing leak detection
 ----------------------------- */
 .decl ReduceEdge(to:Var, toCtx:Context, from:Var, fromCtx:Context)
 ReduceEdge(to, toCtx, from, fromCtx) :-
-    TaintStartsTarget(to, toCtx, from, fromCtx, "rowset").
+    TaintStartsTarget(to, toCtx, from, fromCtx, _, "rowset").
 
 Telemetry_PreProcessingLeak(trainModel, train, invo, meth, ctx2, testModel, test, invo2, meth2, ctx1, reduced_from_src, src),
 PreProcessingLeak(src, invo, meth, ctx2) :-
@@ -1285,7 +1285,7 @@ Overlap leak detection
 .decl DuplicateEdge(to:Var, toCtx:Context, from:Var, fromCtx:Context)
 
 DuplicateEdge(to, toCtx, from, fromCtx) :-
-    TaintStartsTarget(to, toCtx, from, fromCtx, "dup").
+    TaintStartsTarget(to, toCtx, from, fromCtx, _, "dup").
 
 // [TODO] only problematic when all test data overlaps
 Telemetry_OverlapLeak(trainModel, train, invo, meth, ctx1, testModel, test, invo2, meth2, ctx2),
@@ -1326,7 +1326,7 @@ FilteredTests(testModel, test, invo, meth, ctx1) :-
     ModelPair(testModel, ctx1, trainModel, ctx2),
     TrainingDataWithModel(trainModel, train, _, _, ctx2),
     TestDataWithModel(testModel, test, invo, meth, ctx1),
-    ScoredDataWithModel(scoreModel, data, _, _, ctx3),
+    ScoredDataWithModel(scoreModel, data, invo2, meth2, ctx3),
     !FlowFromExtended(testModel, ctx1, scoreModel, ctx3, _), 
     !FlowFromExtended(scoreModel, ctx3, testModel, ctx1, _),
     DataOverlap(test, ctx1, data, ctx3).
