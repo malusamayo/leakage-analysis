@@ -42,7 +42,27 @@ def ir_transform(tree, ir_path):
 
 def infer_types(ir_path):
     # Call type inference engine here
-    os.system("node ~/Projects/pyright/packages/pyright/index.js " + ir_path + " --lib")
+
+def generate_lineno_mapping(tree1, tree2):
+    lineno_map = {}
+    if len(tree1.body) != len(tree2.body):
+        return lineno_map
+    def add_to_mapping(body1, body2):
+        for stmt1, stmt2 in zip(body1, body2):
+            if hasattr(stmt1, 'lineno') and hasattr(stmt2, 'lineno'):
+                lineno_map[str(stmt2.lineno)] = str(stmt1.lineno)
+            if hasattr(stmt1, 'body') and hasattr(stmt2, 'body'):
+                add_to_mapping(stmt1.body, stmt2.body)
+            if hasattr(stmt1, 'orelse') and hasattr(stmt2, 'orelse'):
+                add_to_mapping(stmt1.orelse, stmt2.orelse)
+            if hasattr(stmt1, 'handlers') and hasattr(stmt2, 'handlers'):
+                add_to_mapping(stmt1.orelse, stmt2.orelse)
+            if hasattr(stmt1, 'finalbody') and hasattr(stmt2, 'finalbody'):
+                add_to_mapping(stmt1.orelse, stmt2.orelse)
+                
+    add_to_mapping(tree1.body, tree2.body)
+    return lineno_map
+
 
 def generate_facts(tree, json_path, fact_path):
     f = factgen.FactGenerator(json_path)

@@ -58,11 +58,18 @@ class CodeTransformer(ast.NodeTransformer):
         if isinstance(body, list):
             new_values = []
             for value in body:
-                if isinstance(value, ast.AST):
+                if isinstance(value, ast.AST):   
+                    if hasattr(value, "lineno"):
+                        saved_lineno = value.lineno
+                    else:
+                        saved_lineno = -1
                     value = self.visit(value)
                     if value is None:
                         continue
                     elif not isinstance(value, ast.AST):
+                        if saved_lineno != -1:
+                            for v in value:
+                                v.lineno = saved_lineno
                         new_values.extend(value)
                         continue
                 new_values.append(value)
@@ -96,7 +103,7 @@ class CodeTransformer(ast.NodeTransformer):
 
     def visit_Lambda(self, node):
         func_name = self.FManager.get_new_func()
-        func_def = ast.FunctionDef(func_name, node.args, [ast.Return(node.body)], [])
+        func_def = ast.FunctionDef(func_name, node.args, [ast.Return(node.body, lineno = node.body.lineno)], [], lineno=node.lineno)
         return [self.visit(func_def)], ast.Name(func_name)
 
     def visit_Return(self, node):
@@ -135,7 +142,7 @@ class CodeTransformer(ast.NodeTransformer):
             nodes += nodes1
         elif type(node.target) in [ast.Tuple, ast.List]:
             new_var = ast.Name(self.FManager.get_new_var())
-            node.body = [ast.Assign([node.target], new_var)] + node.body
+            node.body = [ast.Assign([node.target], new_var, lineno=node.lineno)] + node.body
             nodes1, node.target = self.visit_Name(new_var, assigned=True)
             nodes += nodes1
             # visit_Iter(nodes, node.target, node.iter.id)
@@ -201,7 +208,7 @@ class CodeTransformer(ast.NodeTransformer):
             nodes1, item.context_expr = self.visit(item.context_expr)
             nodes += nodes1
             if item.optional_vars:
-                nodes += self.visit(ast.Assign([item.optional_vars], item.context_expr))
+                nodes += self.visit(ast.Assign([item.optional_vars], item.context_expr, lineno=node.lineno))
         node.body = self.visit_Body(node.body)
         return nodes + [node]
 
