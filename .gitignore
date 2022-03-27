@@ -2,6 +2,7 @@
 .pytest_cache/
 tests/inputs/*-fact/
 tests/inputs/*.json
+tests/inputs/*.html
 tests/inputs/*.ir.py
 tests/Github_samples*
 __pycache__
