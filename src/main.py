@@ -7,6 +7,13 @@ import shutil
 from src.global_collector import GlobalCollector
 from . import factgen
 from .irgen import CodeTransformer
+from .render import to_html
+
+class Config(object):
+    def __init__(self, inference_path, output_flag) -> None:
+        self.inference_path = inference_path
+        self.output_flag = output_flag
+config = Config("../pyright-m/packages/pyright/index.js", True)
 
 def remove_files(folder):
     for filename in os.listdir(folder):
@@ -42,6 +49,7 @@ def ir_transform(tree, ir_path):
 
 def infer_types(ir_path):
     # Call type inference engine here
+    os.system(f"node {config.inference_path} {ir_path} --lib")
 
 def generate_lineno_mapping(tree1, tree2):
     lineno_map = {}
@@ -80,18 +88,24 @@ def generate_facts(tree, json_path, fact_path):
             f.writelines("\n".join(facts))
 
 def datalog_analysis(fact_path):
-    os.system(f"souffle ~/Projects/py-analysis/src/main.dl -F {fact_path} -D {fact_path}")
+    os.system(f"souffle ./src/main.dl -F {fact_path} -D {fact_path}")
 
 def main(input_path):
     ir_path = input_path +".ir.py"
     json_path = input_path + ".json"
     fact_path = input_path[:-3] + "-fact"
+    html_path = input_path[:-3] + ".html"
 
     tree = load_input(input_path)
-    newtree = ir_transform(tree, ir_path)
+    tree = ir_transform(tree, ir_path)
     infer_types(ir_path)
+    newtree = load_input(ir_path)
+    if config.output_flag:
+        lineno_map = generate_lineno_mapping(tree, newtree)
     generate_facts(newtree, json_path, fact_path)
     datalog_analysis(fact_path)
+    if config.output_flag:
+        to_html(input_path, fact_path, html_path, lineno_map)
 
 if __name__ == "__main__":
     main(os.path.abspath(sys.argv[1]))
