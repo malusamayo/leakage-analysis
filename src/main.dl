@@ -1322,6 +1322,7 @@ NoTestData(trainModel, train, invo, meth, ctx2) :-
 
 .decl FilteredTests(testModel:Var, test:Var, invo:Invocation, meth:Method, ctx:Context)
 .decl FinalNoTestData(msg:symbol, cnt:number)
+.decl FinalNoTestDataWithMultiUse(msg:symbol, cnt:number)
 FilteredTests(testModel, test, invo, meth, ctx1) :-
     ModelPair(testModel, ctx1, trainModel, ctx2),
     TrainingDataWithModel(trainModel, train, _, _, ctx2),
@@ -1336,13 +1337,18 @@ FilteredTests(testModel, test, invo, meth, ctx1) :-
     TestDataWithModel(testModel, test, invo, meth, ctx1),
     DataOverlap(test, ctx1, train, ctx2).
 FinalNoTestData("NOTEST", c1) :-
+    TrainingDataWithModel(_, _, _, _, _), // there should be at least one training data
     c1 = count : {ModelPair(testModel, ctx1, _, _), TestDataWithModel(testModel, test, invo, meth, ctx1)},
     c2 = count : {ModelPair(testModel, ctx1, _, _), FilteredTests(testModel, test, invo, meth, ctx1)},
     c1 = c2.
+FinalNoTestDataWithMultiUse(msg, c) :-
+    FinalNoTestData(msg, c),
+    MultiUseTestLeak(_, _, _, _).
 
 .output FilteredTests
 .output FinalOverlapLeak
 .output FinalNoTestData
+.output FinalNoTestDataWithMultiUse
 
 /* -----------------------------
 Multi-used test data detection
@@ -1352,7 +1358,7 @@ MultiUseTestLeak(test, invo, meth, ctx1) :-
     ScoredDataWithModel(testModel, test, invo, meth, ctx1),
     ScoredDataWithModel(testModel2, test2, invo2, meth2, ctx2),
     DataOverlap(test, ctx1, test2, ctx2),
-    invo != invo2,
+    // invo != invo2,
     !FlowFromExtended(testModel, ctx1, testModel2, ctx2, _),
     !FlowFromExtended(testModel2, ctx2, testModel, ctx1, _).
 
@@ -1376,6 +1382,7 @@ MultiUseTestLeak(test, invo, meth, ctx1) :-
 .output TrainingDataWithModel
 .output TestDataWithModel
 .output ValDataWithModel
+.output ValOrTestDataWithModel
 .output ScoredDataWithModel
 
 .output TaintStartsTarget
