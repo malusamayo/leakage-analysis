@@ -337,11 +337,13 @@ class CodeTransformer(ast.NodeTransformer):
         return nodes
 
     def visit_AnnAssign(self, node):
-        nodes = self.handle_single_assign(node.target, node.value)
-        if type(node.target) == ast.Name:
-            assert node.target.id == nodes[-1].targets[0].id
-            nodes[-1] = ast.AnnAssign(node.target, node.annotation, nodes[-1].value, simple = node.simple)
-        return nodes
+        if node.value:
+            nodes = self.handle_single_assign(node.target, node.value)
+            if type(node.target) == ast.Name and type(nodes[-1]) == ast.Assign:
+                nodes[-1] = ast.AnnAssign(nodes[-1].targets[0], node.annotation, nodes[-1].value, simple = node.simple)
+            return nodes
+        else:
+            return [node]
     
     def visit_AugAssign(self, node):
         return self.visit_Assign(ast.Assign([node.target], ast.BinOp(node.target, node.op, node.value)))
