@@ -250,6 +250,10 @@ class FactGenerator(ast.NodeVisitor):
         self.in_loop = False
         return ret
     
+    def visit_ExceptHandler(self, node):
+        node.body = self.visit_Body(node.body)
+        return node
+
     def visit_Return(self, node):
         if type(node.value) == ast.Name:
             self.FManager.add_fact("FormalReturn", (0, self.get_cur_sig(), node.value.id))
