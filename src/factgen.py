@@ -241,22 +241,8 @@ class FactGenerator(ast.NodeVisitor):
         assert(type(node.iter) == ast.Name)
         assert(type(node.target) == ast.Name)
 
-        # def visit_Iter(target, iter_id):
-        #     for i, x in enumerate(target.elts):
-        #         if type(x) == ast.Name:
-        #             self.mark_localvars(x.id)
-        #             self.FManager.add_fact("LoadIndex", (x.id, iter_id, "index_placeholder"))
-        #         elif type(x) in [ast.Tuple, ast.List]:
-        #             visit_Iter(x, iter_id)
-        #         else:
-        #             assert 0
-
         self.mark_localvars(node.target.id)
         self.FManager.add_fact("LoadIndex", (node.target.id, node.iter.id, "index_placeholder"))
-        # elif type(node.target) in [ast.Tuple, ast.List]:
-        #     visit_Iter(node.target, node.iter.id)
-        # else:
-        #     assert 0
         self.in_loop = True
         self.loop_vars.append(node.iter.id)
         ret = ast.NodeTransformer.generic_visit(self, node)

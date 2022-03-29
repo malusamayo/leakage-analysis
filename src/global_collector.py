@@ -53,21 +53,7 @@ class GlobalCollector(ast.NodeVisitor):
         return self.visit_FunctionDef(node)
     
     def visit_For(self, node):
-        def visit_Iter(target):
-            for i, x in enumerate(target.elts):
-                if type(x) == ast.Name:
-                    self.handle_name_assigned(x.id)
-                elif type(x) in [ast.Tuple, ast.List]:
-                    visit_Iter(x)
-                else:
-                    assert 0
-
-        if type(node.target) == ast.Name:
-            self.handle_name_assigned(node.target.id)
-        elif type(node.target) in [ast.Tuple, ast.List]:
-            visit_Iter(node.target)
-        else:
-            assert 0
+        self.handle_single_assign(node.target)
         ret = self.generic_visit(node)
         return ret
     
