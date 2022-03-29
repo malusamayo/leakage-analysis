@@ -39,23 +39,23 @@ def test_fillna():
     
 
 def test_tfidf():
-    template("nb_100841.py", ["MultinomialNB | Unbound.fit"])
+    template("nb_100841.py", ["MultinomialNB.fit"])
     template("nb_334422.py", ['AdaBoostRegressor.fit', 'DecisionTreeRegressor.fit', 
                             'GradientBoostingRegressor.fit', 'KNeighborsRegressor.fit', 
                             'LassoCV.fit', 'LinearRegression.fit',
                             'RandomForestRegressor.fit', 'RidgeCV.fit'])
 
 def test_dataFrameMapper():
-    template("nb_132929.py", ["GaussianNB.fit", "Unbound.fit"])
+    template("nb_132929.py", ["GaussianNB.fit", "SGDClassifier.fit"])
 
 def test_scaler():
     template("nb_194503.py", ["Model.fit"])
-    template("nb_362989.py", ["GaussianNB.fit", "Unbound.fit"])
+    template("nb_362989.py", ["GaussianNB.fit", "SGDClassifier.fit"])
     template("nb_473437.py", [])
 
 def test_pca():
     template("nb_205857.py", ["KMeans.fit", "RandomForestClassifier.fit", "Unknown.fit"]) 
-    template("nb_471253.py", [])
+    template("nb_471253.py", ["SGDClassifier.fit"])
 
 def test_countvec():
     template("nb_303674.py", ["Unknown.fit"])
