@@ -1246,7 +1246,7 @@ Leak detection rules
 // General edges/taints
 // Taints are initialized at places where pre-processing leak might happen
 .decl TaintStarts(var:Var, ctx: Context, label:symbol)
-.decl TaintStartsTarget(to:Var, toCtx:Context, from:Var, fromCtx:Context, invo:Invocation, label:symbol)
+.decl TaintStartsTarget(to:Var, toCtx:Context, from:Var, fromCtx:Context, invo:Invocation, meth:Method, label:symbol)
 
 TaintStarts(var, callerCtx, label) :-
     CallGraphEdge(invo, callerCtx, meth, _),
@@ -1254,7 +1254,7 @@ TaintStarts(var, callerCtx, label) :-
     ActualReturn(idx, invo, var).
 
 TaintStarts(var, callerCtx, label),
-TaintStartsTarget(target, callerCtx, var, callerCtx, invo, label) :-
+TaintStartsTarget(target, callerCtx, var, callerCtx, invo, meth, label) :-
     CallGraphEdge(invo, callerCtx, meth, _),
     (ParamToParamTaintSourceMethod(toIdx, fromIdx, meth, label), ActualParam(toIdx, invo, target);
     ParamToRetTaintSourceMethod(toIdx, fromIdx, meth, label), ActualReturn(toIdx, invo, target);
@@ -1267,7 +1267,7 @@ Pre-processing leak detection
 ----------------------------- */
 .decl ReduceEdge(to:Var, toCtx:Context, from:Var, fromCtx:Context)
 ReduceEdge(to, toCtx, from, fromCtx) :-
-    TaintStartsTarget(to, toCtx, from, fromCtx, _, "rowset").
+    TaintStartsTarget(to, toCtx, from, fromCtx, _, _, "rowset").
 
 Telemetry_PreProcessingLeak(trainModel, train, invo, meth, ctx2, testModel, test, invo2, meth2, ctx1, reduced_from_src, src),
 PreProcessingLeak(src, invo, meth, ctx2) :-
@@ -1285,7 +1285,7 @@ Overlap leak detection
 .decl DuplicateEdge(to:Var, toCtx:Context, from:Var, fromCtx:Context)
 
 DuplicateEdge(to, toCtx, from, fromCtx) :-
-    TaintStartsTarget(to, toCtx, from, fromCtx, _, "dup").
+    TaintStartsTarget(to, toCtx, from, fromCtx, _, _, "dup").
 
 // [TODO] only problematic when all test data overlaps
 Telemetry_OverlapLeak(trainModel, train, invo, meth, ctx1, testModel, test, invo2, meth2, ctx2),
