@@ -13,7 +13,7 @@ class Config(object):
     def __init__(self, inference_path, output_flag) -> None:
         self.inference_path = inference_path
         self.output_flag = output_flag
-config = Config("../pyright-m/packages/pyright/index.js", True)
+config = Config("../pyright-m/packages/pyright/index.js", False)
 
 def remove_files(folder):
     for filename in os.listdir(folder):
@@ -105,6 +105,7 @@ def main(input_path):
     generate_facts(newtree, json_path, fact_path)
     datalog_analysis(fact_path)
     if config.output_flag:
+        print("Converting notebooks to html...")
         to_html(input_path, fact_path, html_path, lineno_map)
 
 if __name__ == "__main__":
