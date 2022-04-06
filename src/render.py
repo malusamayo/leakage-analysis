@@ -39,12 +39,52 @@ script_code = '''<script>
         }
     }
 </script>
+    <style type="text/css">
+    .sum table {
+    font-family: arial, sans-serif;
+    border-collapse: collapse;
+    width: 100%;
+    }
+
+    .sum td, .sum th {
+    border: 1px solid #dddddd;
+    text-align: left;
+    padding: 8px;
+    }
+
+    .sum tr:hover {background-color: #D6EEEE;}
+</style>
+'''
+
+SUMMARY_TEMP = '''<center>
+<table class="sum">
+  <tbody><tr>
+    <th>Leakage</th>
+    <th>#Detected</th>
+    <th>Locations</th>
+  </tr>
+  <tr>
+    <td>Pre-processing leakage</td>
+    <td>#NUMPRE</td>
+    <td>#LOCPRE</td>
+  </tr>
+  <tr>
+    <td>Overlap leakage</td>
+    <td>#NUMOVERLAP</td>
+    <td>#LOCOVERLAP</td>
+  </tr>
+  <tr>
+    <td>No independence test data</td>
+    <td>#NUMMULTI</td>
+    <td>#LOCMULTI</td>
+  </tr>
+</tbody></table></center>
 '''
 
 REMIND_STYLE = "background-color: green; color: white; border:none;"
 WARN_STYLE = "background-color: red; color: white; border:none;"
 def get_button(content, style=None, onclick=None):
-    return f'''<button type="button" style="{style}" onclick="{onclick}">{content}</button>'''
+    return f'''<button type="button" style="line-height: 85%; {style}" onclick="{onclick}">{content}</button>'''
 def wrap_in_link(ele, link_id):
     return f'''<a href="#{link_id}">{ele}</a>'''
 
@@ -79,12 +119,13 @@ def get_columns(filename):
         "TrainingDataWithModel.csv": ['model', 'data', 'invo', 'meth', 'ctx'],
         "ValDataWithModel.csv": ['model', 'data', 'invo', 'meth', 'ctx'],
         "ValOrTestDataWithModel.csv": ['model', 'data', 'invo', 'meth', 'ctx'],
-        "TaintStartsTarget.csv": ['to', 'toCtx', 'from', 'fromCtx', 'invo', 'label'],
+        "TaintStartsTarget.csv": ['to', 'toCtx', 'from', 'fromCtx', 'invo', 'meth', 'label'],
         "Telemetry_OverlapLeak.csv": ['trainModel', 'train', 'trainInvo', 'trainMeth', 'ctx1', 'testModel', 'test', 'invo', 'testMeth', 'ctx2'],
         "FinalOverlapLeak.csv": ['trainModel', 'train', 'invo', 'trainMeth', 'ctx', 'cnt'],
         "Telemetry_PreProcessingLeak.csv": ['trainModel', 'train', 'trainInvo', 'trainMeth', 'ctx1', 'testModel', 'test', 'testInvo', 'testMeth', 'ctx2', 'des', 'src'],
         "Telemetry_MultiUseTestLeak.csv": ['testModel', 'test', 'invo', 'meth', 'ctx1', 'testModel2', 'test2', 'invo2', 'meth2', 'ctx2'],
-        "NoTestData.csv": ['trainModel', 'train', 'invo', 'trainMeth', 'ctx']
+        "NoTestData.csv": ['trainModel', 'train', 'invo', 'trainMeth', 'ctx'],
+        "FinalNoTestDataWithMultiUse.csv": ['msg', 'cnt']
     }
     return d[filename]
 
@@ -96,7 +137,7 @@ def load_info(fact_path, filename, labels, info, invos=()):
     def append_info(row):
         labels[row['invo']][(info, invos)] = None
     df.apply(append_info, axis=1)
-
+    return df
 
 def to_html(input_path, fact_path, html_path, lineno_map):
     with open(input_path) as f:
@@ -132,7 +173,7 @@ def to_html(input_path, fact_path, html_path, lineno_map):
 
     # find train/val/test data
     load_info(fact_path, "TrainingDataWithModel.csv", labels, "train")
-    load_info(fact_path, "ValOrTestDataWithModel.csv", labels, "test")
+    valortests = load_info(fact_path, "ValOrTestDataWithModel.csv", labels, "test")
     load_info(fact_path, "ValDataWithModel.csv", labels, "validation")
 
     # find train/test pairs
@@ -148,7 +189,7 @@ def to_html(input_path, fact_path, html_path, lineno_map):
     # overlap info
     overlapsrcInvos = set(leaksrc.loc[leaksrc['label'] == "dup"]["invo"])
     load_info(fact_path, "Telemetry_OverlapLeak.csv", labels, "test_overlap", sorted_invo(overlapsrcInvos))
-    load_info(fact_path, "FinalOverlapLeak.csv", labels, "train_overlap")
+    finaloverlap = load_info(fact_path, "FinalOverlapLeak.csv", labels, "train_overlap")
 
     # pre-processing info
     preleaks = read_fact(fact_path, "Telemetry_PreProcessingLeak.csv") 
@@ -173,6 +214,25 @@ def to_html(input_path, fact_path, html_path, lineno_map):
         for (label, invos) in tags.keys():
             html_lines[invo_idx(invo)] +=  ' ' + translate_labels(label, invos, invo2lineno)
 
-    html_lines.insert(0, script_code)
+    def invos2buttons(invos):
+        return ' '.join([wrap_in_link(get_button(str(invo2lineno[invo])), str(invo2lineno[invo])) for invo in invos])
+
+    def gen_summary():
+        summary = SUMMARY_TEMP
+        summary = summary.replace("#NUMPRE", str(preleaks["testInvo"].nunique()))
+        summary = summary.replace("#LOCPRE", invos2buttons(sorted_invo(preleaks["testInvo"])))
+        summary = summary.replace("#NUMOVERLAP", str(finaloverlap["invo"].nunique()))
+        summary = summary.replace("#LOCOVERLAP", invos2buttons(sorted_invo(finaloverlap["invo"])))
+
+        notests = read_fact(fact_path, "FinalNoTestDataWithMultiUse.csv")
+        summary = summary.replace("#NUMMULTI", str(len(notests)))
+        if len(notests) > 0:
+            summary = summary.replace("#LOCMULTI", invos2buttons(sorted_invo(valortests["invo"])))
+        else:
+            summary = summary.replace("#LOCMULTI",  "")
+        return summary
+
+    html_lines.insert(0, script_code + gen_summary())
+    html_lines[html_lines.index('pre { line-height: 125%; }')] = 'pre { line-height: 145%; }'
     with open(html_path, "w") as f:
         f.write('\n'.join(html_lines))
