@@ -517,9 +517,12 @@ class CodeTransformer(ast.NodeTransformer):
         new_keys = []
         new_values = []
         for v in node.keys:
-            newNodes, new_v = self.visitOnly(v, [ast.Constant])
-            nodes += newNodes
-            new_keys.append(new_v)
+            if v != None:
+                newNodes, new_v = self.visitOnly(v, [ast.Constant])
+                nodes += newNodes
+                new_keys.append(new_v)
+            else:
+                new_keys.append(v)
         for v in node.values:
             newNodes, new_v = self.visitOnly(v, [ast.Constant])
             nodes += newNodes

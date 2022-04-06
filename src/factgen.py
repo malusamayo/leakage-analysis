@@ -231,7 +231,7 @@ class FactGenerator(ast.NodeVisitor):
             else:
                 self.FManager.add_fact("FormalParam", (i+1, meth, arg.arg))
         self.visit_Body(node.body)
-        if self.in_class and node.name == "__init__":
+        if self.in_class and node.name == "__init__" and len(node.args.args) > 0:
             self.FManager.add_fact("Alloc", (node.args.args[0].arg, self.FManager.get_new_heap(), self.get_cur_sig()))
             self.FManager.add_fact("FormalReturn", (0, meth, node.args.args[0].arg))
         self.scopeManager.leaveNamedBlock()
@@ -332,8 +332,11 @@ class FactGenerator(ast.NodeVisitor):
             if len(value.values) <= 50 and ast.Name in [type(x) for x in value.values]:
                 for k, v in zip(value.keys, value.values):
                     if type(v) == ast.Name:
-                        k_literal = k.id if type(k) == ast.Name else k.value
-                        self.FManager.add_fact("StoreIndex", (target_name, k_literal, v.id))
+                        if k == None:
+                            self.FManager.add_fact("AssignVar", (target_name, v.id))
+                        else:
+                            k_literal = k.id if type(k) == ast.Name else k.value
+                            self.FManager.add_fact("StoreIndex", (target_name, k_literal, v.id))
                     else:
                         assert type(v) ==  ast.Constant
             new_iter = self.meth_map[type(value)]()
