@@ -3,14 +3,14 @@ import ast
 import astunparse
 import json
 import shutil
-
-from src.global_collector import GlobalCollector
+import argparse
+from .global_collector import GlobalCollector
 from . import factgen
 from .irgen import CodeTransformer
 from .render import to_html
 
 class Config(object):
-    def __init__(self, inference_path, output_flag) -> None:
+    def __init__(self, inference_path: str, output_flag: bool) -> None:
         self.inference_path = inference_path
         self.output_flag = output_flag
 config = Config("../pyright-m/packages/pyright/index.js", False)
@@ -109,4 +109,9 @@ def main(input_path):
         to_html(input_path, fact_path, html_path, lineno_map)
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Run analysis for a single file')
+    parser.add_argument('file', help='the python file to be analyzed')
+    parser.add_argument('-o', '--output-flag', help='output html file', action="store_true")
+    args = parser.parse_args()
+    config = Config("../pyright-m/packages/pyright/index.js", args.output_flag)
     main(os.path.abspath(sys.argv[1]))
