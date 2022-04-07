@@ -507,6 +507,12 @@ ParamToRetTaintSourceMethod(0, 1, meth, "rowset")  :-
     Invoke(_, meth, _),
     match("(GenericUnivariateSelect|SelectPercentile|SelectKBest|SelectFpr|SelectFdr|SelectFromModel|SelectFwe|SequentialFeatureSelector|RFE|RFECV|VarianceThreshold)[.]fit", meth). 
 
+// clustering leaks
+ParamToParamTaintSourceMethod(0, 1, meth, "rowset"),
+ParamToRetTaintSourceMethod(0, 1, meth, "rowset")  :-
+    Invoke(_, meth, _),
+    match("(AffinityPropagation|AgglomerativeClustering|Birch|DBSCAN|FeatureAgglomeration|KMeans|MiniBatchKMeans|MeanShift|OPTICS|SpectralClustering|SpectralBiclustering|SpectralCoclustering)[.](fit|fit_predict)", meth).
+
 // other leaks
 ParamToParamTaintSourceMethod(0, 1, meth, "rowset"),
 ParamToRetTaintSourceMethod(0, 1, meth, "rowset") :-
@@ -580,14 +586,15 @@ ScoredData(meth, 1, 2) :-
 ScoredResult(meth, 2) :-
     Invoke(_, meth, _),
     match(".*(accuracy_score|average_precision_score|balanced_accuracy_score|brier_score_loss|classification_report|cohen_kappa_score|confusion_matrix|dcg_score|det_curve|f1_score|fbeta_score|hamming_loss|hinge_loss|jaccard_score|log_loss|matthews_corrcoef|multilabel_confusion_matrix|ndcg_score|precision_recall_curve|precision_recall_fscore_support|precision_score|recall_score|roc_auc_score|roc_curve|top_k_accuracy_score|zero_one_loss|explained_variance_score|max_error|mean_absolute_error|mean_squared_error|mean_squared_log_error|median_absolute_error|mean_absolute_percentage_error|r2_score|mean_poisson_deviance|mean_gamma_deviance|mean_tweedie_deviance|d2_tweedie_score|mean_pinball_loss|coverage_error|label_ranking_average_precision_score|label_ranking_loss|adjusted_mutual_info_score|adjusted_rand_score|completeness_score|contingency_matrix|pair_confusion_matrix|fowlkes_mallows_score|homogeneity_completeness_v_measure|homogeneity_score|mutual_info_score|normalized_mutual_info_score|rand_score|v_measure_score)", meth).
-// known pre-processing methods not for training a model
+// known pre-processing/clustering methods not for training a classification model
 // [Problem!!] Unknown custom methods may also be pre-processing
 FilteredTrainingMethod(meth) :-
     Invoke(_, meth, _),
     (match("(GenericUnivariateSelect|SelectPercentile|SelectKBest|SelectFpr|SelectFdr|SelectFromModel|SelectFwe|SequentialFeatureSelector|RFE|RFECV|VarianceThreshold)[.]fit", meth);
     match("(CountVectorizer|HashingVectorizer|TfidfTransformer|TfidfVectorizer|PCA)[.]fit", meth);
     match("(Imputer|SimpleImputer|IterativeImputer|KNNImputer)[.]fit", meth);
-    match("(FunctionTransformer|KBinsDiscretizer|KernelCenterer|LabelBinarizer|LabelEncoder|MultiLabelBinarizer|MaxAbsScaler|MinMaxScaler|Normalizer|OneHotEncoder|OrdinalEncoder|PolynomialFeatures|PowerTransformer|QuantileTransformer|RobustScaler|SplineTransformer|StandardScaler)[.]fit", meth)).
+    match("(FunctionTransformer|KBinsDiscretizer|KernelCenterer|LabelBinarizer|LabelEncoder|MultiLabelBinarizer|MaxAbsScaler|MinMaxScaler|Normalizer|OneHotEncoder|OrdinalEncoder|PolynomialFeatures|PowerTransformer|QuantileTransformer|RobustScaler|SplineTransformer|StandardScaler)[.]fit", meth);
+    match("(AffinityPropagation|AgglomerativeClustering|Birch|DBSCAN|FeatureAgglomeration|KMeans|MiniBatchKMeans|MeanShift|OPTICS|SpectralClustering|SpectralBiclustering|SpectralCoclustering)[.]fit", meth)).
 
 // ---- Type Info ----
 .decl IsDataFrame(var:Var)
