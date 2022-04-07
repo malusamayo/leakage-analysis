@@ -1299,12 +1299,9 @@ Leak detection rules
 .decl FinalOverlapLeak(trainModel:Var, train:Var, invo:Invocation, meth:Method, ctx:Context, c:number)
 .decl MultiUseTestLeak(test:Var, invo:Invocation, meth:Method, ctx:Context)
 .decl Telemetry_PreProcessingLeak(trainModel:Var, train:Var, trainInvo:Invocation, trainMeth:Method, ctx1:Context, testModel:Var, test:Var, testInvo:Invocation, testMeth:Method, ctx2:Context, des:Var, src:Var)
+.decl Telemetry_FinalPreProcessingLeak(trainModel:Var, train:Var, trainInvo:Invocation, trainMeth:Method, ctx1:Context, testModel:Var, test:Var, testInvo:Invocation, testMeth:Method, ctx2:Context, des:Var, src:Var)
 .decl Telemetry_OverlapLeak(trainModel:Var, train:Var, trainInvo:Invocation, trainMeth:Method, ctx1:Context, testModel:Var, test:Var, testInvo:Invocation, testMeth:Method, ctx2:Context)
 .decl Telemetry_MultiUseTestLeak(testModel:Var, test:Var, testInvo:Invocation, testMeth:Method, ctx1:Context, testModel2:Var, test2:Var, testInvo2:Invocation, testMeth2:Method, ctx2:Context)
-
-// Leak(var, invo, meth) :-
-//     PreProcessingLeak(var, invo, meth);
-//     OverlapLeak(_, var, invo, meth).
 
 // General edges/taints
 // Taints are initialized at places where pre-processing leak might happen
@@ -1341,6 +1338,16 @@ PreProcessingLeak(src, invo, meth, ctx2) :-
     ReduceEdge(reduced_from_src, r_ctx, src, src_ctx),
     (FlowFromExtended(train, ctx2, reduced_from_src, r_ctx, _); FlowFromExtended(test, ctx1, reduced_from_src, r_ctx, _)),
     DataOverlap(test, ctx1, src, src_ctx).
+
+// Only report val leak when there is no test data
+Telemetry_FinalPreProcessingLeak(trainModel, train, invo, meth, ctx2, testModel, test, invo2, meth2, ctx1, reduced_from_src, src) :-
+    Telemetry_PreProcessingLeak(trainModel, train, invo, meth, ctx2, testModel, test, invo2, meth2, ctx1, reduced_from_src, src),
+    TestDataWithModel(testModel, test, invo2, meth2, ctx1).
+
+Telemetry_FinalPreProcessingLeak(trainModel, train, invo, meth, ctx2, testModel, test, invo2, meth2, ctx1, reduced_from_src, src) :-
+    Telemetry_PreProcessingLeak(trainModel, train, invo, meth, ctx2, testModel, test, invo2, meth2, ctx1, reduced_from_src, src),
+    ValOrTestDataWithModel(testModel, test, invo2, meth2, ctx1),
+    NoTestData(trainModel, train, invo, meth, ctx2).
 
 /* -----------------------------
 Overlap leak detection
