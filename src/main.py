@@ -4,6 +4,7 @@ import astunparse
 import json
 import shutil
 import argparse
+import time
 from .global_collector import GlobalCollector
 from . import factgen
 from .irgen import CodeTransformer
@@ -27,16 +28,26 @@ def remove_files(folder):
             print('Failed to delete %s. Reason: %s' % (file_path, e))
 
 
+def time_decorator(func):
+    def wrapper_function(*args, **kwargs):
+        try:
+            st = time.time()
+            ret = func(*args,  **kwargs)
+            ed = time.time()
+            return ret, ed - st
+        except:
+            print("Failed!")
+            return None, -1
+    return wrapper_function
+
+@time_decorator
 def load_input(input_path):
     with open(input_path) as f:
         code = f.read()
-    try:
         tree = ast.parse(code)
-    except:
-        print("Failed to parse " + input_path)
-        exit(37)
     return tree
 
+@time_decorator
 def ir_transform(tree, ir_path):
     ignored_vars = GlobalCollector().visit(tree)
     v = CodeTransformer(ignored_vars)
@@ -47,10 +58,12 @@ def ir_transform(tree, ir_path):
         f.write(new_code)
     return new_tree
 
+@time_decorator
 def infer_types(ir_path):
     # Call type inference engine here
     os.system(f"node {config.inference_path} {ir_path} --lib")
 
+@time_decorator
 def generate_lineno_mapping(tree1, tree2):
     lineno_map = {}
     if len(tree1.body) != len(tree2.body):
@@ -71,7 +84,7 @@ def generate_lineno_mapping(tree1, tree2):
     add_to_mapping(tree1.body, tree2.body)
     return lineno_map
 
-
+@time_decorator
 def generate_facts(tree, json_path, fact_path):
     f = factgen.FactGenerator(json_path)
     f.visit(tree)
@@ -87,6 +100,7 @@ def generate_facts(tree, json_path, fact_path):
             facts = ["\t".join(t) for t in fact_list]
             f.writelines("\n".join(facts))
 
+@time_decorator
 def datalog_analysis(fact_path):
     os.system(f"souffle ./src/main.dl -F {fact_path} -D {fact_path}")
 
@@ -95,18 +109,44 @@ def main(input_path):
     json_path = input_path + ".json"
     fact_path = input_path[:-3] + "-fact"
     html_path = input_path[:-3] + ".html"
+    t = [None]*6
 
-    tree = load_input(input_path)
-    tree = ir_transform(tree, ir_path)
-    infer_types(ir_path)
-    newtree = load_input(ir_path)
+    tree, t[0] = load_input(input_path)
+    if t[0] == -1:
+        print("Failed to parse: " + input_path)
+        return "Failed to parse"
+    
+    tree, t[1] = ir_transform(tree, ir_path)
+    if t[1]== -1:
+        print("Failed to generate IR: " + input_path)
+        return "Failed to generate IR"
+    
+    _, t[2] = infer_types(ir_path)
+    assert t[2] != -1
+
+    
+    newtree, t[3] = load_input(ir_path)
+    if t[3] == -1:
+        print("Failed to parse transformed file: " + input_path)
+        return "Failed to parse transformed file"
+
     if config.output_flag:
         lineno_map = generate_lineno_mapping(tree, newtree)
-    generate_facts(newtree, json_path, fact_path)
-    datalog_analysis(fact_path)
+    
+    _, t[4] = generate_facts(newtree, json_path, fact_path)
+    if t[4] == -1:
+        print("Failed to generate facts: " + input_path)
+        return "Failed to generate facts" 
+    
+    _, t[5] = datalog_analysis(fact_path)
+    assert t[5] != -1
+
     if config.output_flag:
         print("Converting notebooks to html...")
         to_html(input_path, fact_path, html_path, lineno_map)
+    
+    print(t)
+    return t
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Run analysis for a single file')

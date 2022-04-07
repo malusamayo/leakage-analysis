@@ -1,6 +1,7 @@
 import os, sys
 import subprocess
 import argparse
+from .main import main
 
 parser = argparse.ArgumentParser(description='Run analysis in batch')
 parser.add_argument('dir', help='the directory of python files to be analyzed')
@@ -33,15 +34,22 @@ if __name__ == "__main__":
         if result.returncode:
             print_red("Conversion failed!")
             write_to_log(file, "Conversion failed")
-        result = subprocess.run(["python3", "-m", "src.main", file_path]) 
-        if result.returncode:
+        
+        msg = main(file_path)
+        if type(msg) == str:
             print_red("Analysis failed!")
-            if result.returncode == 37:
-                write_to_log(file, "Failed to parse!")
-            else:
-                write_to_log(file, "Unknown: " + str(result.returncode))
-            continue
-        write_to_log(file, "Success!")
+            write_to_log(file, msg)
+        else:
+            write_to_log(file, "Success!\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t".format(msg[0]+msg[1]+msg[3]+msg[4], msg[2], msg[5], sum(msg)))
+        # result = subprocess.run(["python3", "-m", "src.main", file_path]) 
+        # if result.returncode:
+        #     print_red("Analysis failed!")
+        #     if result.returncode == 37:
+        #         write_to_log(file, "Failed to parse!")
+        #     else:
+        #         write_to_log(file, "Unknown: " + str(result.returncode))
+        #     continue
+        # write_to_log(file, "Success!")
     log.close()
 
     # main.main(test_file_path)
