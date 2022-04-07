@@ -116,13 +116,13 @@ class CodeTransformer(ast.NodeTransformer):
         nodes1 = []
         if node.value:
             nodes1, node.value = self.visitOnly(node.value, [ast.Tuple])
-        return nodes1 + [node]
+        return nodes1, node
 
     def visit_YieldFrom(self, node):
         nodes1 = []
         if node.value:
             nodes1, node.value = self.visitOnly(node.value, [ast.Tuple])
-        return nodes1 + [node]
+        return nodes1, node
 
     def visit_For(self, node):
         nodes, node.iter = self.visitNameOnly(node.iter)
