@@ -1259,8 +1259,6 @@ ValOrTestDataWithModel(model, data, invo, meth, ctx) :-
     CallGraphEdge(invo, ctx, meth, _),
     !TrainingDataWithModel(model, data, invo, meth, ctx).
 
-.output TorchModelWithData
-
 // Test model should be paired with nearest training model
 .decl ModelPair(testModel:Var, ctx1:Context, trainModel:Var, ctx2:Context)
 .decl ModelPairCandidate(testModel:Var, ctx1:Context, trainModel:Var, ctx2:Context)
@@ -1279,28 +1277,9 @@ ModelPair(testModel, ctx1, trainModel, ctx2) :-
     c2 = count : { ModelPairCandidate(testModel, ctx1, trainModel2, ctx3), TrainingDataWithModel(trainModel2, _, invo3, _, ctx3), InvokePath(invo3, ctx3, invo2, ctx2), trainModel2 != trainModel},
     c2 = 0.
 
-.output InvokeEdge
-.output InvokePath
-.output ModelPairCandidate
-.output ModelPair
-.output Telemetry_ModelPair
-// Pairing train/test, train/val data
-// We assume there should be no data overlapping
-// TrainTestPair(trainModel, train, testModel, test) :-
-//     TestDataWithModel(testModel, test, _, _),
-//     TrainingDataWithModel(trainModel, train, _, _),
-//     !DataOverlap(test, ctx1, train, ctx2),
-//     ModelPair(testModel, ctx1, trainModel, ctx2).
-// TrainValPair(trainModel, train, valModel, val) :-
-//     ValDataWithModel(valModel, val, _, _),
-//     TrainingDataWithModel(trainModel, train, _, _),
-//     !DataOverlap(val, ctx1, train, ctx2),
-//     ModelPair(valModel, ctx1, trainModel, ctx2).
-
 /* -----------------------------
 Leak detection rules
 ----------------------------- */
-// .decl Leak(var:Var, invo:Invocation, meth:Method)
 .decl PreProcessingLeak(var:Var, invo:Invocation, meth:Method, ctx:Context)
 .decl OverlapLeak(testModel:Var, ctx1:Context, trainModel:Var, ctx2:Context, invo:Invocation, meth:Method)
 .decl FinalOverlapLeak(trainModel:Var, train:Var, invo:Invocation, meth:Method, ctx:Context, c:number)
@@ -1422,10 +1401,6 @@ FinalNoTestDataWithMultiUse(msg, c) :-
     FinalNoTestData(msg, c),
     MultiUseTestLeak(_, _, _, _).
 
-.output FilteredTests
-.output FinalOverlapLeak
-.output FinalNoTestData
-.output FinalNoTestDataWithMultiUse
 
 /* -----------------------------
 Multi-used test data detection
@@ -1443,6 +1418,7 @@ MultiUseTestLeak(test, invo, meth, ctx1) :-
 .output VarEquals
 .output CallGraphEdge
 
+// basic analysis results
 .output VarPointsTo
 .output FieldPointsTo
 .output IndexContentPointsTo
@@ -1454,20 +1430,34 @@ MultiUseTestLeak(test, invo, meth, ctx1) :-
 
 .output DataOverlap
 
-// .output TrainTestPair
-// .output TrainValPair
+.output InvokeEdge
+.output InvokePath
+
+// model-related info
+.output TorchModelWithData
 .output TrainingDataWithModel
 .output TestDataWithModel
 .output ValDataWithModel
 .output ValOrTestDataWithModel
 .output ScoredDataWithModel
+.output ModelPairCandidate
+.output ModelPair
+.output Telemetry_ModelPair
 
+// leakage analysis results
 .output TaintStartsTarget
 .output PreProcessingLeak
 .output OverlapLeak
 .output NoTestData
 .output NoValAndTestData
 .output MultiUseTestLeak
+
+.output FilteredTests
+.output FinalOverlapLeak
+.output FinalNoTestData
+.output FinalNoTestDataWithMultiUse
+
 .output Telemetry_PreProcessingLeak
+.output Telemetry_FinalPreProcessingLeak
 .output Telemetry_OverlapLeak
 .output Telemetry_MultiUseTestLeak
