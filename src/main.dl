@@ -12,6 +12,15 @@
 #define ValueIdMacro(id, type) \
     cat(cat(cat(id, "::: "), type), "::: ")
 
+#define MakeVarCtx(var, ctx) \
+    cat(cat(cat(cat("(", var), ", "), ctx), ")")
+
+#define MakeCtx(ctx1, ctx2) \
+    cat(cat(cat(cat("[", ctx1), ", "), ctx2), "]")
+
+#define MakePath(ele, path) \
+    cat(cat(cat(cat("[", ele), ", "), path), "]")
+
 // ---- inputs ----
 // inner-procedural facts
 .decl AssignVar(to:Var, from:Var)
@@ -1037,6 +1046,58 @@ FlowFrom(to, toCtx, from, fromCtx, tag) :-
 // [deprecated]
 FlowFromExtended(to, toCtx, from, fromCtx, tag) :-
     FlowFrom(to, toCtx, from, fromCtx, tag).
+
+
+// compute shortest-path length in information-flow graph
+// distinguish normal edges vs alias edges?
+// .type VarCtx <: symbol
+// .type Path <: symbol
+
+// .decl PathLength(to:Var, toCtx:Context, from:Var, fromCtx:Context, tag:symbol, path:symbol, len:number)
+// .decl MinPathLength(to:Var, toCtx:Context, from:Var, fromCtx:Context, tag:symbol, path:symbol, len:number)
+// .decl PathCrossContext(to:Var, toCtx:Context, from:Var, fromCtx:Context, tag:symbol, path:symbol, n:number)
+
+// PathLength(to, toCtx, from, fromCtx, tag, path, 1) :-
+//     FlowFromEdge(to, toCtx, from, fromCtx, tag),
+//     (to != from; toCtx != fromCtx),
+//     toCtx = [invo1, invo2], fromCtx = [invo3, invo4],
+//     path = MakePath(MakeVarCtx(to, MakeCtx(invo1, invo2)), MakePath(MakeVarCtx(from, MakeCtx(invo3, invo4)), "[]")).
+
+// PathLength(to, toCtx, from, fromCtx, tag, new_path, i+1) :-
+//     FlowFromEdge(to, toCtx, mid, midCtx, tag),
+//     PathLength(mid, midCtx, from, fromCtx, tag, path, i),
+//     toCtx = [invo1, invo2],
+//     !contains(MakeVarCtx(to, MakeCtx(invo1, invo2)), path),
+//     new_path = MakePath(MakeVarCtx(to, MakeCtx(invo1, invo2)), path).
+
+// MinPathLength(to, toCtx, from, fromCtx, tag, path, minl) :-
+//     PathLength(to, toCtx, from, fromCtx, tag, path, l),
+//     minl = l,
+//     minl = min l : { PathLength(to, toCtx, from, fromCtx, tag, _, l) }.
+
+// PathCrossContext(to, toCtx, from, fromCtx, tag, path, 1) :-
+//     PathLength(to, toCtx, from, fromCtx, tag, path, 1),
+//     toCtx != fromCtx.
+// PathCrossContext(to, toCtx, from, fromCtx, tag, path, 0) :- 
+//     PathLength(to, toCtx, from, fromCtx, tag, path, 1),
+//     toCtx = fromCtx.
+
+// PathCrossContext(to, toCtx, from, fromCtx, tag, new_path, i+1) :-
+//     FlowFromEdge(to, toCtx, mid, midCtx, tag),
+//     PathCrossContext(mid, midCtx, from, fromCtx, tag, path, i),
+//     MinPathLength(to, toCtx, from, fromCtx, tag, new_path, l),
+//     MinPathLength(mid, midCtx, from, fromCtx, tag, path, l-1),
+//     toCtx != midCtx.
+
+// PathCrossContext(to, toCtx, from, fromCtx, tag, new_path, i) :-
+//     FlowFromEdge(to, toCtx, mid, midCtx, tag),
+//     PathCrossContext(mid, midCtx, from, fromCtx, tag, path, i),
+//     MinPathLength(to, toCtx, from, fromCtx, tag, new_path, l),
+//     MinPathLength(mid, midCtx, from, fromCtx, tag, path, l-1),
+//     toCtx = midCtx.
+
+// .output MinPathLength
+// .output PathCrossContext
 
 
 /* -----------------------------
