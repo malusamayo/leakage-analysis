@@ -35,8 +35,9 @@ def time_decorator(func):
             ret = func(*args,  **kwargs)
             ed = time.time()
             return ret, ed - st
-        except:
+        except Exception as e:
             print("Failed!")
+            print(e)
             return None, -1
     return wrapper_function
 
@@ -102,7 +103,9 @@ def generate_facts(tree, json_path, fact_path):
 
 @time_decorator
 def datalog_analysis(fact_path):
-    os.system(f"souffle ./src/main.dl -F {fact_path} -D {fact_path}")
+    ret = os.system(f"timeout 5m souffle ./src/main.dl -F {fact_path} -D {fact_path}")
+    if ret != 0:
+        raise TimeoutError
 
 def main(input_path):
     ir_path = input_path +".ir.py"
@@ -139,7 +142,9 @@ def main(input_path):
         return "Failed to generate facts" 
     
     _, t[5] = datalog_analysis(fact_path)
-    assert t[5] != -1
+    if t[5] == -1:
+        print("Failed to analyze: " + input_path)
+        return "Failed to analyze" 
 
     if config.output_flag:
         print("Converting notebooks to html...")
