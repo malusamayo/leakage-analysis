@@ -54,7 +54,7 @@ def test_scaler():
     template("nb_473437.py", [])
 
 def test_pca():
-    template("nb_205857.py", ["KMeans.fit", "RandomForestClassifier.fit", "Unknown.fit"]) 
+    template("nb_205857.py", ["RandomForestClassifier.fit", "Unknown.fit"]) 
     template("nb_471253.py", ["SGDClassifier.fit"])
 
 def test_countvec():
