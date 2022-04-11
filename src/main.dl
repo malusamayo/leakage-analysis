@@ -322,7 +322,9 @@ ParamToRetDataFlow(0, 1, meth) :-
     Invoke(_, meth, _),
     match(".*[.](fit_resample|fit_sample)", meth).
 
-ParamToRetEquivFlow(0, 1, "sklearn.preprocessing.scale").
+ParamToRetEquivFlow(0, 1, meth) :-
+    Invoke(_, meth, _),
+    match(".*(add_dummy_feature|binarize|maxabs_scale|minmax_scale|normalize|quantile_transform|robust_scale|scale|power_transform)", meth).
 ParamToRetDataFlow(0, 1, meth),
 ParamToRetDataFlow(1, 1, meth),
 ParamToRetDataFlow(2, 2, meth),
@@ -473,6 +475,10 @@ ParamToRetTaintSourceMethod(0, 0, meth, "rowset") :-
 ParamToRetTaintSourceMethod(0, 0, ".*[.]DataFrame.groupby", "rowset").
 ParamToRetTaintSourceMethod(0, 1, "sklearn.preprocessing.scale", "rowset"). 
 // sklearn.preprocessing.normalize when axis = 1
+
+ParamToRetEquivFlow(0, 1, meth) :-
+    Invoke(_, meth, _),
+    match(".*(maxabs_scale|minmax_scale|quantile_transform|robust_scale|scale|power_transform)", meth).
 
 // pre-processing leaks 
 ParamToParamTaintSourceMethod(0, 1, meth, "rowset"),
