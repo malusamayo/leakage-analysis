@@ -1399,7 +1399,8 @@ FinalNoTestData("NOTEST", c1) :-
     c1 = c2.
 FinalNoTestDataWithMultiUse(msg, c) :-
     FinalNoTestData(msg, c),
-    MultiUseTestLeak(_, _, _, _).
+    ValOrTestDataWithModel(model, test, invo, meth, ctx),
+    ValDataWithModel(model, test, invo, meth, ctx).
 
 
 /* -----------------------------
