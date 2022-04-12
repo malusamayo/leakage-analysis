@@ -5,6 +5,7 @@ import json
 import shutil
 import argparse
 import time
+import traceback
 from .global_collector import GlobalCollector
 from . import factgen
 from .irgen import CodeTransformer
@@ -38,6 +39,7 @@ def time_decorator(func):
         except Exception as e:
             print("Failed!")
             print(e)
+            print(traceback.format_exc())
             return None, -1
     return wrapper_function
 
@@ -64,7 +66,6 @@ def infer_types(ir_path):
     # Call type inference engine here
     os.system(f"node {config.inference_path} {ir_path} --lib")
 
-@time_decorator
 def generate_lineno_mapping(tree1, tree2):
     lineno_map = {}
     if len(tree1.body) != len(tree2.body):

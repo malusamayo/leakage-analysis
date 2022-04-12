@@ -8,6 +8,7 @@ parser.add_argument('dir', help='the directory of python files to be analyzed')
 parser.add_argument('-s', '--sort', help='sort python files by number', action="store_true")
 parser.add_argument('-r', '--recursive', help='search for python files recursively', action="store_true")
 parser.add_argument('-f', '--file', help='analyze file dir', action="store")
+parser.add_argument('-o', '--output-flag', help='output html file', action="store_true")
 args = parser.parse_args()
 
 def print_red(msg):
