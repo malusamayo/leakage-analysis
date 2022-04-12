@@ -578,10 +578,10 @@ ValData(meth, 0, 1) :-
     match(".*(GridSearchCV|HalvingGridSearchCV|ParameterGrid|ParameterSampler|RandomizedSearchCV|HalvingRandomSearchCV)[.]fit", meth).
 ValData(meth, 0, 8) :-
     Invoke(_, meth, _),
-    match(".*(Sequential|Model)[.](fit)", meth).
+    match(".*[.](fit)", meth).
 ValData(meth, 0, 6) :-
     Invoke(_, meth, _),
-    match(".*(Sequential|Model)[.](fit_generator)", meth).
+    match(".*[.](fit_generator)", meth).
 
 ScoredData(meth, 0, 1) :-
     Invoke(_, meth, _),
@@ -1229,7 +1229,7 @@ ValDataWithModel(testModel2, val2, invo2, meth2, ctx2) :-
 // [Case 4] propagation to overlapping data
 ValDataWithModel(model, test, invo, meth, ctx1) :-
     ValOrTestDataWithModel(model, test, invo, meth, ctx1),
-    ValDataWithModel(testModel, val, invo, meth, ct2),
+    ValDataWithModel(testModel, val, invo2, meth2, ct2),
     (FlowFromExtended(model, ctx1, testModel, ctx2, _); FlowFromExtended(testModel, ctx2, model, ctx1, _)),
     DataOverlap(test, ctx1, val, ctx2).
 
