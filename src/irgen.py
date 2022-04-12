@@ -194,8 +194,12 @@ class CodeTransformer(ast.NodeTransformer):
             nodes += nodes1
             if item.optional_vars:
                 nodes += self.visit(ast.Assign([item.optional_vars], item.context_expr, lineno=node.lineno))
+        ctx1 = self.scopeManager.get_tmp_new_ctx()
         node.body = self.visit_Body(node.body)
-        return nodes + [node]
+
+        ctx2 = self.scopeManager.get_tmp_new_ctx()
+        inits, phi_calls = self.scopeManager.resolve_upates(ctx1, ctx2, self.scopeManager.ctx)
+        return nodes + inits + [node] + phi_calls
 
     def visit_Delete(self, node):
         nodes = []

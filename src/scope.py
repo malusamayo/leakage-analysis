@@ -137,36 +137,36 @@ class ScopeManager(object):
         phi_calls = []
 
         for var_name in up1set:
-            assert self.hasName(var_name, _ctx=outer_ctx)
-            var_name_1 = ast.Name(self.getName(var_name, _ctx=ctx1))
-            var_name_2 = ast.Name(self.getName(var_name, _ctx=outer_ctx))
-            var_name_3 = ast.Name(self.getName(var_name, assigned=True, _ctx=outer_ctx))
-            assign = ast.Assign([var_name_3], ast.Call(ast.Name("__phi__"), [var_name_1, var_name_2], []))
-            # init = ast.Assign([var_name_1], var_name_2)
-            # inits.append(init)
-            phi_calls.append(assign)
+            if self.hasName(var_name, _ctx=outer_ctx):
+                var_name_1 = ast.Name(self.getName(var_name, _ctx=ctx1))
+                var_name_2 = ast.Name(self.getName(var_name, _ctx=outer_ctx))
+                var_name_3 = ast.Name(self.getName(var_name, assigned=True, _ctx=outer_ctx))
+                assign = ast.Assign([var_name_3], ast.Call(ast.Name("__phi__"), [var_name_1, var_name_2], []))
+                # init = ast.Assign([var_name_1], var_name_2)
+                # inits.append(init)
+                phi_calls.append(assign)
 
         for var_name in up2set:
-            assert self.hasName(var_name, _ctx=outer_ctx)
-            var_name_1 = ast.Name(self.getName(var_name, _ctx=ctx2))
-            var_name_2 = ast.Name(self.getName(var_name, _ctx=outer_ctx))
-            var_name_3 = ast.Name(self.getName(var_name, assigned=True, _ctx=outer_ctx))
-            assign = ast.Assign([var_name_3], ast.Call(ast.Name("__phi__"), [var_name_1, var_name_2], []))
-            # init = ast.Assign([var_name_1], var_name_2)
-            # inits.append(init)
-            phi_calls.append(assign)
+            if self.hasName(var_name, _ctx=outer_ctx):
+                var_name_1 = ast.Name(self.getName(var_name, _ctx=ctx2))
+                var_name_2 = ast.Name(self.getName(var_name, _ctx=outer_ctx))
+                var_name_3 = ast.Name(self.getName(var_name, assigned=True, _ctx=outer_ctx))
+                assign = ast.Assign([var_name_3], ast.Call(ast.Name("__phi__"), [var_name_1, var_name_2], []))
+                # init = ast.Assign([var_name_1], var_name_2)
+                # inits.append(init)
+                phi_calls.append(assign)
         
         for var_name in conflicts:
-            assert self.hasName(var_name, _ctx=outer_ctx)
-            # var_name_0 = ast.Name(self.getName(var_name, _ctx=outer_ctx))
-            var_name_1 = ast.Name(self.getName(var_name, _ctx=ctx1))
-            var_name_2 = ast.Name(self.getName(var_name, _ctx=ctx2))
-            var_name_3 = ast.Name(self.getName(var_name, assigned=True, _ctx=outer_ctx))
-            assign = ast.Assign([var_name_3], ast.Call(ast.Name("__phi__"), [var_name_1, var_name_2], []))
-            # init1 = ast.Assign([var_name_1], var_name_0)
-            # init2 = ast.Assign([var_name_2], var_name_0)
-            # inits += [init1, init2]
-            phi_calls.append(assign)
+            if self.hasName(var_name, _ctx=outer_ctx):
+                # var_name_0 = ast.Name(self.getName(var_name, _ctx=outer_ctx))
+                var_name_1 = ast.Name(self.getName(var_name, _ctx=ctx1))
+                var_name_2 = ast.Name(self.getName(var_name, _ctx=ctx2))
+                var_name_3 = ast.Name(self.getName(var_name, assigned=True, _ctx=outer_ctx))
+                assign = ast.Assign([var_name_3], ast.Call(ast.Name("__phi__"), [var_name_1, var_name_2], []))
+                # init1 = ast.Assign([var_name_1], var_name_0)
+                # init2 = ast.Assign([var_name_2], var_name_0)
+                # inits += [init1, init2]
+                phi_calls.append(assign)
 
         defs1 = self.defined_in_ctx['.'.join(ctx1)]
         defs2 = self.defined_in_ctx['.'.join(ctx2)]
