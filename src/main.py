@@ -64,7 +64,7 @@ def ir_transform(tree, ir_path):
 @time_decorator
 def infer_types(ir_path):
     # Call type inference engine here
-    os.system(f"node {config.inference_path} {ir_path} --lib")
+    os.system(f"timeout 5m node {config.inference_path} {ir_path} --lib")
 
 def generate_lineno_mapping(tree1, tree2):
     lineno_map = {}
@@ -126,7 +126,9 @@ def main(input_path):
         return "Failed to generate IR"
     
     _, t[2] = infer_types(ir_path)
-    assert t[2] != -1
+    if not os.path.exists(json_path):
+        print("Failed to infer types: " + input_path)
+        return "Failed to infer types" 
 
     
     newtree, t[3] = load_input(ir_path)
@@ -151,7 +153,7 @@ def main(input_path):
         print("Converting notebooks to html...")
         to_html(input_path, fact_path, html_path, lineno_map)
     
-    print(t)
+    print("Success!\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t".format(t[0]+t[1]+t[3]+t[4], t[2], t[5], sum(t)))
     return t
 
 if __name__ == "__main__":
