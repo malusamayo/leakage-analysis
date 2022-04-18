@@ -253,6 +253,13 @@ class FactGenerator(ast.NodeVisitor):
     def visit_ExceptHandler(self, node):
         node.body = self.visit_Body(node.body)
         return node
+    
+    # async ast nodes
+    def visit_AsyncFunctionDef(self, node):
+        return self.visit_FunctionDef(node)
+
+    def visit_AsyncFor(self, node):
+        return self.visit_For(node)
 
     def visit_Return(self, node):
         if type(node.value) == ast.Name:

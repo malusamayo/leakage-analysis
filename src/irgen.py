@@ -342,7 +342,8 @@ class CodeTransformer(ast.NodeTransformer):
 
     def visit_AnnAssign(self, node):
         if node.value:
-            nodes = self.handle_single_assign(node.target, node.value)
+            nodes, node.annotation = self.visitNameOnly(node.annotation)
+            nodes += self.handle_single_assign(node.target, node.value)
             if type(node.target) == ast.Name and type(nodes[-1]) == ast.Assign:
                 nodes[-1] = ast.AnnAssign(nodes[-1].targets[0], node.annotation, nodes[-1].value, simple = node.simple)
             return nodes
