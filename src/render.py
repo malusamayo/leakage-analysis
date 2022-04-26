@@ -159,7 +159,8 @@ def to_html(input_path, fact_path, html_path, lineno_map):
         lines = f.readlines()
         for line in lines:
             invo, lineno = line.strip().split("\t")
-            invo2lineno[invo] = lineno_map[lineno]
+            if lineno in lineno_map:
+                invo2lineno[invo] = lineno_map[lineno]
 
     labels = defaultdict(dict) # for each line of code
 

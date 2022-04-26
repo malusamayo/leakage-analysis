@@ -151,7 +151,10 @@ def main(input_path):
 
     if config.output_flag:
         print("Converting notebooks to html...")
-        to_html(input_path, fact_path, html_path, lineno_map)
+        try:
+            to_html(input_path, fact_path, html_path, lineno_map)
+        except:
+            print("Conversion failed!")
     
     print("Success!\t{:.2f}\t{:.2f}\t{:.2f}\t{:.2f}\t".format(t[0]+t[1]+t[3]+t[4], t[2], t[5], sum(t)))
     return t
