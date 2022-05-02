@@ -52,7 +52,7 @@ class FactManager(object):
 
 
     def add_fact(self, fact_name, fact_tuple):
-        print(fact_name, fact_tuple)
+        # print(fact_name, fact_tuple)
         fact_tuple = (str(t) for t in fact_tuple)
         self.datalog_facts[fact_name].append(fact_tuple)
 
@@ -462,7 +462,7 @@ class FactGenerator(ast.NodeVisitor):
             if self.in_loop:
                 self.add_loop_facts(cur_invo, node.func.id)
         else:
-            print("Impossible!")
+            print(type(node.func), ": Impossible!")
         self.visit_arguments(node.args, cur_invo=cur_invo)
         self.visit_keywords(node.keywords, cur_invo=cur_invo)
         return cur_invo
