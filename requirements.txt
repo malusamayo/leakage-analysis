@@ -1,0 +1,2 @@
+astunparse==1.6.3
+Pygments==2.10.0
