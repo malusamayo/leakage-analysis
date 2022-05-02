@@ -138,6 +138,9 @@ def main(input_path):
 
     if config.output_flag:
         lineno_map = generate_lineno_mapping(tree, newtree)
+        with open(os.path.join(fact_path, "LinenoMapping.facts"), "w") as f:
+            facts = [a + "\t" + b for a, b in lineno_map.items()]
+            f.writelines("\n".join(facts))
     
     _, t[4] = generate_facts(newtree, json_path, fact_path)
     if t[4] == -1:
