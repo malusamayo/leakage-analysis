@@ -10,12 +10,7 @@ from .global_collector import GlobalCollector
 from . import factgen
 from .irgen import CodeTransformer
 from .render import to_html
-
-class Config(object):
-    def __init__(self, inference_path: str, output_flag: bool) -> None:
-        self.inference_path = inference_path
-        self.output_flag = output_flag
-config = Config("../pyright-m/packages/pyright/index.js", False)
+from .config import configs
 
 def remove_files(folder):
     for filename in os.listdir(folder):
@@ -64,7 +59,7 @@ def ir_transform(tree, ir_path):
 @time_decorator
 def infer_types(ir_path):
     # Call type inference engine here
-    os.system(f"timeout 5m node {config.inference_path} {ir_path} --lib")
+    os.system(f"timeout 5m node {configs.inference_path} {ir_path} --lib")
 
 def generate_lineno_mapping(tree1, tree2):
     lineno_map = {}
@@ -136,7 +131,7 @@ def main(input_path):
         print("Failed to parse transformed file: " + input_path)
         return "Failed to parse transformed file"
 
-    if config.output_flag:
+    if configs.output_flag:
         lineno_map = generate_lineno_mapping(tree, newtree)
         with open(os.path.join(fact_path, "LinenoMapping.facts"), "w") as f:
             facts = [a + "\t" + b for a, b in lineno_map.items()]
@@ -152,7 +147,7 @@ def main(input_path):
         print("Failed to analyze: " + input_path)
         return "Failed to analyze" 
 
-    if config.output_flag:
+    if configs.output_flag:
         print("Converting notebooks to html...")
         try:
             to_html(input_path, fact_path, html_path, lineno_map)
@@ -167,5 +162,5 @@ if __name__ == "__main__":
     parser.add_argument('file', help='the python file to be analyzed')
     parser.add_argument('-o', '--output-flag', help='output html file', action="store_true")
     args = parser.parse_args()
-    config = Config("../pyright-m/packages/pyright/index.js", args.output_flag)
+    configs.output_flag = args.output_flag
     main(os.path.abspath(sys.argv[1]))
