@@ -17,6 +17,11 @@ A static analysis tool to detect test data leakage in Python notebooks
 3. Build Docker image: ```docker build -t leakage-analysis .```
 4. Run Docker image: ```docker run -v /path/to/dir:/path/to/dir leakage-analysis /path/to/dir/$FILE -o```. All to-be-analyzed notebooks should be converted to Python files and stored in `/path/to/dir`.
 
+## How to read output
+For a given input file `test.py`, an output html file `test.html` will be generated if `-o` flag is specified. 
+
+In `test.html`, we show the analysis results alongside input code. A summary table on detected leakage issues is shown on the top. Users could also utilize the interactive buttons to highlight relevant code and navigate through different code segments.
+
 ## Internal Structure
 
 Given a Python file, `src/main.py` first parses the input into AST. 
