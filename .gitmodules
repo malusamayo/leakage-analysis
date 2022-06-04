@@ -1,0 +1,3 @@
+[submodule "pyright"]
+	path = pyright
+	url = https://github.com/malusamayo/pyright
