@@ -1,2 +1,6 @@
 astunparse==1.6.3
 Pygments==2.10.0
+pandas
+numpy
+scikit-learn
+imblearn
