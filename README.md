@@ -1,15 +1,21 @@
 # Leakage Analysis
 A static analysis tool to detect test data leakage in Python notebooks
 
-## Prerequistes
+## How to build
 1. Install [souffle](https://souffle-lang.github.io/install), the datalog engine we use for our main analysis. Make sure that souffle could be directly invoked in command line.
-2. Download and build our customized version of [pyright](), the type inference engine we use. Configue the type inference engine path in **main.py** to the path in your machine. 
+2. Pull and build our customized version of [pyright], the type inference engine we use: ```git submodule update --init --recursive ``` (please refer to the submodule for building the project).
 3. Install required Python packages in requirements.txt.
 
 ## How to use
 1. Run analysis for a single Python file: ```python3 -m src.main /path/to/file```
 2. Run analysis for all Python files in a directory: ```python3 -m src.run /path/to/dir```
 3. More information could be found using the `-h` flag.
+
+## How to build and run Docker image
+1. Pull and build our customized version of pyright, the type inference engine we use: ```git submodule update --init --recursive ``` (please refer to the submodule for building the project).
+2. Add all used Python libraries to `requirements.txt`, which will be installed in the container and used by pyright.
+3. Build Docker image: ```docker build -t leakage-analysis .```
+4. Run Docker image: ```docker run -v /path/to/dir:/path/to/dir leakage-analysis /path/to/dir/$FILE -o```. All to-be-analyzed notebooks should be converted to Python files and stored in `/path/to/dir`.
 
 ## Internal Structure
 
