@@ -86,12 +86,6 @@ def generate_facts(tree, json_path, fact_path):
     f = factgen.FactGenerator(json_path)
     f.visit(tree)
 
-
-    if not os.path.exists(fact_path):
-        os.makedirs(fact_path)
-    else:
-        remove_files(fact_path)
-
     for fact_name, fact_list in f.FManager.datalog_facts.items():
         with open(os.path.join(fact_path, fact_name + ".facts"), "w") as f:
             facts = ["\t".join(t) for t in fact_list]
@@ -130,6 +124,12 @@ def main(input_path):
     if t[3] == -1:
         print("Failed to parse transformed file: " + input_path)
         return "Failed to parse transformed file"
+
+    # clean facts
+    if not os.path.exists(fact_path):
+        os.makedirs(fact_path)
+    else:
+        remove_files(fact_path)
 
     if configs.output_flag:
         lineno_map = generate_lineno_mapping(tree, newtree)
