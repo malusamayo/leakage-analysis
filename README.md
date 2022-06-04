@@ -12,7 +12,7 @@ A static analysis tool to detect test data leakage in Python notebooks
 3. More information could be found using the `-h` flag.
 
 ## How to build and run Docker image
-1. Pull and build our customized version of pyright, the type inference engine we use: ```git submodule update --init --recursive ``` (please refer to the submodule for building the project).
+1. Pull our customized version of pyright, the type inference engine we use: ```git submodule update --init --recursive```.
 2. Add all used Python libraries to `requirements.txt`, which will be installed in the container and used by pyright.
 3. Build Docker image: ```docker build -t leakage-analysis .```
 4. Run Docker image: ```docker run -v /path/to/dir:/path/to/dir leakage-analysis /path/to/dir/$FILE -o```. All to-be-analyzed notebooks should be converted to Python files and stored in `/path/to/dir`.
